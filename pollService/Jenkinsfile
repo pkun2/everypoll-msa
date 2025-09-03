@@ -8,7 +8,7 @@ pipeline {
 
     environment {
         DOCKERHUB_USERNAME = 'pkun2014' 
-        IMAGE_NAME = "${DOCKERHUB_USERNAME}/poll-service"
+        IMAGE_NAME = "${DOCKERHUB_USERNAME}/pollService"
     }
 
     stages {
@@ -20,15 +20,16 @@ pipeline {
 
         stage('Build') { 
             steps {
-                dir('poll-service') {
+                dir('pollService') {
                     sh './gradlew clean build'
                 }
+
             }
         }
 
         stage('Build Docker Image') {
             steps {
-                dir('poll-service') {
+                dir('pollService') {
                     script {
                         
                         def customImage = docker.build("${IMAGE_NAME}:${env.BUILD_NUMBER}", ".")
