@@ -9,6 +9,15 @@ pipeline {
     environment {
         DOCKERHUB_USERNAME = 'pkun2014' 
         IMAGE_NAME = "${DOCKERHUB_USERNAME}/authService"
+        DB_HOST=credentials('authService-db-host')
+        DB_PORT=credentials('authService-db-port')
+        DB_NAME=credentials('authService-db-name')
+        DB_USERNAME=credentials('authService-db-username')
+        DB_PASSWORD=credentials('authService-db-password')
+        REDIS_HOST=credentials('redis-host')
+        REDIS_PORT=credentials('redis-port')
+        KAFKA_BOOTSTRAP_SERVERS=credentials('kafka-bootstrap-servers')
+        JWT_SECRET_KEY = credentials('jwt-secret-key')
     }
 
     stages {

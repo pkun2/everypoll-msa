@@ -9,6 +9,15 @@ pipeline {
     environment {
         DOCKERHUB_USERNAME = 'pkun2014' 
         IMAGE_NAME = "${DOCKERHUB_USERNAME}/pollService"
+        DB_HOST=credentials('pollService-db-host')
+        DB_PORT=credentials('pollService-db-port')
+        DB_NAME=credentials('pollService-db-name')
+        DB_USERNAME=credentials('pollService-db-username')
+        DB_PASSWORD=credentials('pollService-db-password')
+        REDIS_HOST=credentials('redis-host')
+        REDIS_PORT=credentials('redis-port')
+        KAFKA_BOOTSTRAP_SERVERS=credentials('kafka-bootstrap-servers')
+        JWT_SECRET_KEY = credentials('jwt-secret-key')
     }
 
     stages {
