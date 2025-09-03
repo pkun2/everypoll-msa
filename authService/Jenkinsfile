@@ -1,0 +1,44 @@
+// Jenkins Pipeline Script
+pipeline {
+    agent any 
+
+    tools {
+        gradle 'gradle-8'
+    }
+
+    environment {
+        DOCKERHUB_USERNAME = 'pkun2014' 
+        IMAGE_NAME = "${DOCKERHUB_USERNAME}/auth-service"
+    }
+
+    stages {
+        stage('Checkout') { 
+            steps {
+                git branch: 'master', credentialsId: 'pkun2_jenkins', url: 'https://github.com/pkun2/everypoll-msa.git'
+            }
+        }
+
+        stage('Build') { 
+            steps {
+                dir('auth-service') {
+                    sh './gradlew clean build'
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                dir('auth-service') {
+                    script {
+                        
+                        def customImage = docker.build("${IMAGE_NAME}:${env.BUILD_NUMBER}", ".")
+                        
+                        docker.withRegistry('https://registry.hub.docker.com', 'pkun2014_jenkins') {
+                            customImage.push()
+                        }
+                    }
+                }
+            }
+        }
+    }
+}
