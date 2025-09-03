@@ -20,11 +20,7 @@ pipeline {
 
         stage('Build') { 
             steps {
-                sh 'ls -la'
-
-                dir('authService') {
-                    sh './gradlew clean build'
-                }
+                sh './gradlew :auth-service:clean build --info'
             }
         }
 
