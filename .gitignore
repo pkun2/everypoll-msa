@@ -13,9 +13,6 @@ build/
 
 # Gradle 캐시
 .gradle/
-gradle/
-gradlew
-gradlew.bat
 
 # macOS
 .DS_Store
