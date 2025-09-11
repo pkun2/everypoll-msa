@@ -1,10 +1,6 @@
+// Jenkins Pipeline Script
 pipeline {
-    agent {
-        docker {
-            image 'gradle:8-jdk17-alpine' 
-            args '--add-host=host.docker.internal:host-gateway'
-        }
-    }
+    agent any 
 
     tools {
         gradle 'gradle-8'
