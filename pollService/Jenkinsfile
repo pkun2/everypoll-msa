@@ -29,7 +29,7 @@ pipeline {
 
         stage('Build') { 
             steps {
-                sh './gradlew :authService:clean build --info'
+                sh './gradlew :pollService:clean build --info'
             }
         }
 
