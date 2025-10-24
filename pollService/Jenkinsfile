@@ -3,7 +3,7 @@ pipeline {
     agent any 
 
     tools {
-        gradle 'gradle-8'
+        gradle 'Gradle 8.5'
     }
 
     environment {
@@ -24,6 +24,20 @@ pipeline {
         stage('Checkout') { 
             steps {
                 git branch: 'master', credentialsId: 'pkun2_jenkins', url: 'https://github.com/pkun2/everypoll-msa.git'
+            }
+        }
+
+        stage('Prepare Config File') {
+            steps {
+                configFileProvider([configFile(fileId: 'pollService-dotenv', targetLocation: '.env')]) {
+                    sh 'echo "Configuration file is ready."'
+                    sh 'cat .env' 
+                    
+                    sh './gradlew build'
+                }
+                
+                sh 'echo "File does not exist outside the block."'
+                sh 'ls -la'
             }
         }
 

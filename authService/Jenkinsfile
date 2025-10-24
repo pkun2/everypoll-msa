@@ -26,6 +26,20 @@ pipeline {
             }
         }
 
+        stage('Prepare Config File') {
+            steps {
+                configFileProvider([configFile(fileId: 'authService-dotenv', targetLocation: '.env')]) {
+                    sh 'echo "Configuration file is ready."'
+                    sh 'cat .env' 
+                    
+                    sh './gradlew build'
+                }
+                
+                sh 'echo "File does not exist outside the block."'
+                sh 'ls -la'
+            }
+        }
+
         stage('Build') { 
             steps {
                 sh './gradlew :pollService:clean build --info'
