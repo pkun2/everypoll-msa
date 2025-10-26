@@ -8,21 +8,12 @@ pipeline {
     environment {
         DOCKERHUB_USERNAME = 'pkun2014' 
         IMAGE_NAME = "${DOCKERHUB_USERNAME}/authService"
-        DB_HOST=credentials('authService-db-host')
-        DB_PORT=credentials('authService-db-port')
-        DB_NAME=credentials('authService-db-name')
-        DB_USERNAME=credentials('authService-db-username')
-        DB_PASSWORD=credentials('authService-db-password')
-        REDIS_HOST=credentials('redis-host')
-        REDIS_PORT=credentials('redis-port')
-        KAFKA_BOOTSTRAP_SERVERS=credentials('kafka-bootstrap-servers')
-        JWT_SECRET_KEY = credentials('jwt-secret-key')
     }
 
     stages {
         stage('Checkout') { 
             steps {
-                git branch: 'master', credentialsId: 'pkun2_jenkins', url: 'https://github.com/pkun2/everypoll-msa.git'
+                git branch: 'master', credentialsId: 'github', url: 'https://github.com/pkun2/everypoll-msa.git'
             }
         }
 
@@ -32,6 +23,8 @@ pipeline {
                     sh 'echo "Configuration file is ready."'
                     sh 'cat .env' 
                     
+                    injectEnvironment(propertiesFilePath: '.env')
+
                     sh './gradlew build'
                 }
                 
@@ -53,7 +46,7 @@ pipeline {
                         
                         def customImage = docker.build("${IMAGE_NAME}:${env.BUILD_NUMBER}", ".")
                         
-                        docker.withRegistry('https://registry.hub.docker.com', 'pkun2014_jenkins') {
+                        docker.withRegistry('https://registry.hub.docker.com', 'docker') {
                             customImage.push()
                         }
                     }
