@@ -14,7 +14,7 @@ pipeline {
     stages {
         stage('Checkout') { 
             steps {
-                git branch: 'master', credentialsId: 'pkun2_jenkins', url: 'https://github.com/pkun2/everypoll-msa.git'
+                git branch: 'master', credentialsId: 'github', url: 'https://github.com/pkun2/everypoll-msa.git'
             }
         }
 
