@@ -9,6 +9,7 @@ pipeline {
     environment {
         DOCKERHUB_USERNAME = 'pkun2014' 
         IMAGE_NAME = "${DOCKERHUB_USERNAME}/pollService"
+        TESTCONTAINERS_HOST_OVERRIDE = 'host.docker.internal'
     }
 
     stages {
