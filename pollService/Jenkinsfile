@@ -20,17 +20,19 @@ pipeline {
 
         stage('Prepare Config File') {
             steps {
-                configFileProvider([configFile(fileId: 'pollService-dotenv', targetLocation: '.env')]) {
-                    sh 'echo "Configuration file is ready."'
-                    sh 'cat .env' 
+               configFileProvider([configFile(fileId: 'pollService-dotenv', variable: 'envPropsPath')]) {
+                    script {
+                        def props = readProperties file: env.envPropsPath
 
-                    injectEnvironment(propertiesFilePath: '.env')
-                    
-                    sh './gradlew build'
-                }
-                
-                sh 'echo "File does not exist outside the block."'
-                sh 'ls -la'
+                        def envVars = props.collect { key, value -> "${key}=${value}" }
+
+                        withEnv(envVars) {
+                            echo "데이터베이스 호스트: ${env.DB_HOST}:${env.DB_PORT}"
+                            echo "레디스 호스트: ${env.REDIS_HOST}"
+                            echo "카프카 서버: ${env.KAFKA_BOOTSTRAP_SERVERS}"
+                        }
+                    }
+                } 
             }
         }
 
