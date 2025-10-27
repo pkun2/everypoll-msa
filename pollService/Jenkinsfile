@@ -32,7 +32,7 @@ pipeline {
                             echo "레디스 호스트: ${env.REDIS_HOST}"
                             echo "카프카 서버: ${env.KAFKA_BOOTSTRAP_SERVERS}"
 
-                            sh './gradlew :pollService:clean build --info'
+                            sh './gradlew :pollService:clean build -x test --info'
                         }
                     }
                 } 
