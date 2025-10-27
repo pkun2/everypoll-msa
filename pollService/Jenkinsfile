@@ -47,6 +47,12 @@ pipeline {
                 dir('pollService') {
                     withCredentials([usernamePassword(credentialsId: 'docker', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASSWORD')]) {
                         sh '''
+                            echo "--- 현재 설정된 PATH ---"
+                            echo $PATH
+                            echo "--- 'docker' 명령어 위치 검색 ---"
+                            which docker
+                            echo "--- 실제 docker 파일 존재 여부 확인 ---"
+                            ls -l /usr/bin/docker
                             echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USER}" --password-stdin
 
                             docker build -t "${IMAGE_NAME}:${env.BUILD_NUMBER}" .
