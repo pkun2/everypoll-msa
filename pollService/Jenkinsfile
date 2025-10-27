@@ -41,7 +41,9 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                
+                tools {
+                    tool 'docker'
+                }
                 dir('pollService') {
                     withCredentials([usernamePassword(credentialsId: 'docker', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASSWORD')]) {
                         sh '''
