@@ -41,7 +41,7 @@ pipeline {
 
         stage('Build Docker Image') {
             tools {
-                tool 'docker'
+                dockerTool 'docker'
             }
             steps {
                 dir('pollService') {
