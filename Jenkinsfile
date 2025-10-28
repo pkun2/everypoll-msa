@@ -45,7 +45,22 @@ pipeline {
             }
         }
 
-        stage('Test authService') {
+        // stage('Test authService') {
+        //     when { 
+        //         anyOf {
+        //             changeset "**/authService/**" 
+        //             changeset "**/common/**"
+        //         }
+        //     }
+        //     steps {
+        //         configFileProvider([configFile(fileId: 'authService-dotenv', targetLocation: 'authService/.env')]) {
+        //             script {
+        //                 runGradleTest('authService')
+        //             }
+        //         }
+        //     }
+        // }
+        stage('Build authService') {
             when { 
                 anyOf {
                     changeset "**/authService/**" 
@@ -55,43 +70,30 @@ pipeline {
             steps {
                 configFileProvider([configFile(fileId: 'authService-dotenv', targetLocation: 'authService/.env')]) {
                     script {
-                        runGradleTest('authService')
+                        buildAndPushService('authService', env.POLL_SERVICE_IMAGE_NAME)
                     }
-                }
-            }
-        }
-        stage('Build authService') {
-            when { 
-                anyOf {
-                    changeset "**/authService/**" 
-                    changeset "**/common/**"
-                }
-            }
-            steps {
-                script {
-                    buildAndPushService('authService', env.AUTH_SERVICE_IMAGE_NAME)
                 }
             }
         }
 
-        stage('Test pollService') {
-            when {
-                anyOf {
-                    changeset "**/pollService/**"
-                    changeset "**/authService/**"
-                    changeset "**/common/**"
-                }
-            }
-            steps {
-                configFileProvider([
-                    configFile(fileId: 'pollService-dotenv', targetLocation: 'pollService/.env') // pollService용 .env 파일이 있다면 추가
-                ]) {
-                    script {
-                        runGradleTest('pollService')
-                    }
-                }
-            }
-        }
+        // stage('Test pollService') {
+        //     when {
+        //         anyOf {
+        //             changeset "**/pollService/**"
+        //             changeset "**/authService/**"
+        //             changeset "**/common/**"
+        //         }
+        //     }
+        //     steps {
+        //         configFileProvider([
+        //             configFile(fileId: 'pollService-dotenv', targetLocation: 'pollService/.env') 
+        //         ]) {
+        //             script {
+        //                 runGradleTest('pollService')
+        //             }
+        //         }
+        //     }
+        // }
         stage('Build pollService') {
             when {
                 anyOf {
@@ -100,8 +102,10 @@ pipeline {
                 }
             }
             steps {
-                script {
-                    buildAndPushService('pollService', env.POLL_SERVICE_IMAGE_NAME)
+                configFileProvider([configFile(fileId: 'pollService-dotenv', targetLocation: 'pollService/.env')]) {
+                    script {
+                        buildAndPushService('pollService', env.POLL_SERVICE_IMAGE_NAME)
+                    }
                 }
             }
         }
