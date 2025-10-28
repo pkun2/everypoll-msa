@@ -8,7 +8,7 @@ pipeline {
 
     environment {
         DOCKERHUB_USERNAME = 'pkun2014' 
-        IMAGE_NAME = "${DOCKERHUB_USERNAME}/pollService"
+        IMAGE_NAME = "${DOCKERHUB_USERNAME}/poll_service"
         TESTCONTAINERS_HOST_OVERRIDE = 'host.docker.internal'
     }
 
