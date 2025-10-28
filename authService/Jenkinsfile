@@ -18,7 +18,7 @@ pipeline {
             }
         }
 
-        stage('Prepare Config and Build') { // ㄴㅁㅇ 테스트
+        stage('Prepare Config and Build') {
             steps {
                 configFileProvider([configFile(fileId: 'authService-dotenv', variable: 'envPropsPath')]) {
                     script {

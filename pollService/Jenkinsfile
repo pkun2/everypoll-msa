@@ -13,7 +13,7 @@ pipeline {
     }
 
     stages {
-        stage('Checkout') { 
+        stage('Checkout') { //테스트
             steps {
                 git branch: 'master', credentialsId: 'github', url: 'https://github.com/pkun2/everypoll-msa.git'
             }
