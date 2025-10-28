@@ -1,6 +1,8 @@
 services:
   jenkins:
-    image: jenkins/jenkins:lts-jdk17 
+    build:
+      context: .
+      dockerfile: jenkins-dockerfile/Dockerfile
     container_name: jenkins
     ports:
       - "9090:8080"
@@ -9,7 +11,6 @@ services:
     volumes:
       - jenkins_home:/var/jenkins_home  
       - /var/run/docker.sock:/var/run/docker.sock  
-      - /usr/local/bin/docker:/usr/bin/docker
     networks:
       - everypoll-net
   auth-service:

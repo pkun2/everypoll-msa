@@ -47,17 +47,22 @@ pipeline {
                 dir('pollService') {
                     withCredentials([usernamePassword(credentialsId: 'docker', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASSWORD')]) {
                         sh '''
-                            echo "--- 현재 설정된 PATH ---"
-                            echo $PATH
-                            echo "--- 'docker' 명령어 위치 검색 ---"
-                            which docker
-                            echo "--- 실제 docker 파일 존재 여부 확인 ---"
-                            ls -l /usr/bin/docker
+                            #!/bin/bash
+                            set -e
+
+                            echo "INFO - Docker Hub에 로그인합니다..."
                             echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USER}" --password-stdin
+                            echo "INFO - Docker Hub 로그인 성공!"
 
+                            # BUILD_NUMBER를 태그로 사용하여 매 빌드마다 고유한 이미지를 생성합니다.
+                            echo "INFO - Docker 이미지를 빌드합니다: ${IMAGE_NAME}:${env.BUILD_NUMBER}"
                             docker build -t "${IMAGE_NAME}:${env.BUILD_NUMBER}" .
-                            docker push "${IMAGE_NAME}:${env.BUILD_NUMBER}"
 
+                            echo "INFO - Docker 이미지를 Docker Hub로 푸시합니다..."
+                            docker push "${IMAGE_NAME}:${env.BUILD_NUMBER}"
+                            echo "INFO - 푸시 완료!"
+
+                            echo "INFO - Docker Hub에서 로그아웃합니다."
                             docker logout
                         '''
                     }
