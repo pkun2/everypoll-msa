@@ -4,7 +4,7 @@ def buildAndPushService(String serviceName, String imageName) {
             #!/bin/bash
             set -e
             echo "INFO - 도커 로그인 시도..."
-            echo "${DOCKER_PASSWORD}" | docker login -u "${DOKCER_USER}" --password-stdin
+            echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USER}" --password-stdin
             echo "INFO - 도커 빌드 시작: ${imageName}:${BUILD_NUMBER}"
             docker build -f ${serviceName}/Dockerfile -t "${imageName}:${BUILD_NUMBER}" .
             echo "INFO - 도커 허브에 도커 이미지 push..."
