@@ -55,11 +55,11 @@ pipeline {
                             echo "INFO - Docker Hub 로그인 성공!"
 
                             # BUILD_NUMBER를 태그로 사용하여 매 빌드마다 고유한 이미지를 생성합니다.
-                            echo "INFO - Docker 이미지를 빌드합니다: ${IMAGE_NAME}:${env.BUILD_NUMBER}"
-                            docker build -t "${IMAGE_NAME}:${env.BUILD_NUMBER}" .
+                            echo "INFO - Docker 이미지를 빌드합니다: ${IMAGE_NAME}:${BUILD_NUMBER}"
+                            docker build -t "${IMAGE_NAME}:${BUILD_NUMBER}" .
 
                             echo "INFO - Docker 이미지를 Docker Hub로 푸시합니다..."
-                            docker push "${IMAGE_NAME}:${env.BUILD_NUMBER}"
+                            docker push "${IMAGE_NAME}:${BUILD_NUMBER}"
                             echo "INFO - 푸시 완료!"
 
                             echo "INFO - Docker Hub에서 로그아웃합니다."
