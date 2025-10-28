@@ -30,6 +30,7 @@ pipeline {
     environment {
         AUTH_SERVICE_IMAGE_NAME = 'pkun2014/auth_service'
         POLL_SERVICE_IMAGE_NAME = 'pkun2014/poll_service'
+        TESTCONTAINERS_HOST_OVERRIDE = 'host.docker.internal'
     }
 
     tools {
