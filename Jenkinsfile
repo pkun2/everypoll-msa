@@ -16,14 +16,12 @@ def buildAndPushService(String serviceName, String imageName) {
 }
 
 def runGradleTest(String serviceName) {
-    dir(serviceName) {
-        sh """
-            #!/bin/bash
-            set -e
-            echo "INFO - [${serviceName}] 테스트 시작..."
-            ./gradlew clean test
-        """
-    }
+    sh """
+        #!/bin/bash
+        set -e
+        echo "INFO - [${serviceName}] 테스트 시작..."
+        ./gradlew :${serviceName}:clean test
+    """
 }
 
 pipeline {
