@@ -1,5 +1,0 @@
-rootProject.name = 'everypoll-msa'
-
-include 'common'
-include 'authService'
-include 'pollService'
