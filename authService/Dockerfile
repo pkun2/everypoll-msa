@@ -12,7 +12,7 @@ COPY authService ./authService
 RUN ./gradlew :authService:build --build-cache -x test
 
 # Runtime
-FROM openjdk:17-jdk-slim
+FROM openjdk:17.0.1-jdk-slim
 WORKDIR /app
 
 COPY --from=builder /app/authService/build/libs/*.jar app.jar
