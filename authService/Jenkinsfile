@@ -1,0 +1,70 @@
+pipeline {
+    agent any 
+
+    tools {
+        gradle 'gradle-8'
+    }
+
+    environment {
+        DOCKERHUB_USERNAME = 'pkun2014' 
+        IMAGE_NAME = "${DOCKERHUB_USERNAME}/auth_service"
+        TESTCONTAINERS_HOST_OVERRIDE = 'host.docker.internal'
+    }
+
+    stages {
+        stage('Checkout') { 
+            steps {
+                git branch: 'master', credentialsId: 'github', url: 'https://github.com/pkun2/everypoll-msa.git'
+            }
+        }
+
+        stage('Prepare Config and Build') {
+            steps {
+                configFileProvider([configFile(fileId: 'authService-dotenv', variable: 'envPropsPath')]) {
+                    script {
+                        def props = readProperties file: env.envPropsPath
+
+                        def envVars = props.collect { key, value -> "${key}=${value}" }
+
+                        withEnv(envVars) {
+                            echo "데이터베이스 호스트: ${env.DB_HOST}:${env.DB_PORT}"
+                            echo "레디스 호스트: ${env.REDIS_HOST}"
+                            echo "카프카 서버: ${env.KAFKA_BOOTSTRAP_SERVERS}"
+
+                            sh './gradlew :authService:clean build -x test --info'
+                        }
+                    }
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            tools {
+                dockerTool 'docker'
+            }
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'docker', usernameVariable: 'DOCKER_USER', passwordVariable: 'DOCKER_PASSWORD')]) {
+                    sh '''
+                        #!/bin/bash
+                        set -e
+
+                        echo "INFO - Docker Hub에 로그인합니다..."
+                        echo "${DOCKER_PASSWORD}" | docker login -u "${DOCKER_USER}" --password-stdin
+                        echo "INFO - Docker Hub 로그인 성공!"
+
+                        # BUILD_NUMBER를 태그로 사용하여 매 빌드마다 고유한 이미지를 생성합니다.
+                        echo "INFO - Docker 이미지를 빌드합니다: ${IMAGE_NAME}:${BUILD_NUMBER}"
+                        docker build -f authService/Dockerfile -t "${IMAGE_NAME}:${BUILD_NUMBER}" .
+
+                        echo "INFO - Docker 이미지를 Docker Hub로 푸시합니다..."
+                        docker push "${IMAGE_NAME}:${BUILD_NUMBER}"
+                        echo "INFO - 푸시 완료!"
+
+                        echo "INFO - Docker Hub에서 로그아웃합니다."
+                        docker logout
+                    '''
+                }
+            }
+        }
+    }
+}
