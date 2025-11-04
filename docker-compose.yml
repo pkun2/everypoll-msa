@@ -24,9 +24,9 @@ services:
       kafka-kraft:
         condition: service_healthy 
       auth-mysql:
-        condition: service_started
+        condition: service_healthy
       token-redis:
-        condition: service_started
+        condition: service_healthy
     restart: on-failure
     networks:
       - everypoll-net
@@ -43,7 +43,7 @@ services:
       kafka-kraft:
         condition: service_healthy 
       poll-mysql:
-        condition: service_started
+        condition: service_healthy
     restart: on-failure
     networks:
       - everypoll-net
@@ -87,8 +87,14 @@ services:
       - poll_mysql_data:/var/lib/mysql
       - ./poll-init-scripts:/docker-entrypoint-initdb.d
     command:
-      --character-set-server=utf8mb4
-      --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      interval: 15s
+      timeout: 30s
+      retries: 10
     networks:
       - everypoll-net
   auth-mysql:
@@ -103,8 +109,14 @@ services:
       - auth_mysql_data:/var/lib/mysql
       - ./auth-init-scripts:/docker-entrypoint-initdb.d
     command:
-      --character-set-server=utf8mb4
-      --collation-server=utf8mb4_unicode_ci
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      interval: 15s
+      timeout: 30s
+      retries: 10
     networks:
       - everypoll-net
   token-redis:
@@ -115,8 +127,14 @@ services:
     volumes:
       - token_redis_data:/data
     command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - everypoll-net
+    
 
 networks:
   everypoll-net:
