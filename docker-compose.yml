@@ -68,9 +68,9 @@ services:
       KAFKA_CONTROLLER_LISTENER_NAMES: 'CONTROLLER' 
       CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk' 
     healthcheck:
-      test: ["CMD-SHELL", "kafka-topics.sh --bootstrap-server localhost:9092 --list"]
-      interval: 30s
-      timeout: 20s
+      test: ["CMD-SHELL", "cat < /dev/null > /dev/tcp/localhost/9092"]
+      interval: 15s
+      timeout: 10
       retries: 10
       start_period: 300s
     networks:
