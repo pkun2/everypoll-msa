@@ -70,7 +70,7 @@ services:
     healthcheck:
       test: ["CMD-SHELL", "cat < /dev/null > /dev/tcp/localhost/9092"]
       interval: 15s
-      timeout: 10
+      timeout: 10s
       retries: 10
       start_period: 300s
     networks:
