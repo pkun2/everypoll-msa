@@ -60,7 +60,7 @@ pipeline {
         //         }
         //     }
         // }
-        stage('Build authService') { //테스트
+        stage('Build authService') {
             when { 
                 anyOf {
                     changeset "**/authService/**" 

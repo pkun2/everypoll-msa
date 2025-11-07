@@ -39,7 +39,7 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Build Docker Image') { //테스트
             tools {
                 dockerTool 'docker'
             }
