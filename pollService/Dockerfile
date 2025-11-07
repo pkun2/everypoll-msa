@@ -17,4 +17,6 @@ WORKDIR /app
 
 COPY --from=builder /app/pollService/build/libs/*.jar app.jar
 
+ENV JAVA_TOOL_OPTIONS="-XX:-UseContainerSupport"
+
 ENTRYPOINT ["java", "-jar", "app.jar"]
