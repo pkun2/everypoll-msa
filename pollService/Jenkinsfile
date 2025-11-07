@@ -39,7 +39,7 @@ pipeline {
             }
         }
 
-        stage('Build Docker Image') {
+        stage('Build Docker Image') { // 웹훅트테스트
             tools {
                 dockerTool 'docker'
             }
