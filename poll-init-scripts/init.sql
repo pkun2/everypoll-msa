@@ -1,9 +1,7 @@
-CREATE DATABASE IF NOT EXISTS poll CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+-- 일단 poll 데이터베이스 하나 추가
+CREATE DATABASE IF NOT EXISTS poll;
 
-CREATE USER IF NOT EXISTS 'poll_springboot'@'localhost' IDENTIFIED WITH 'mysql_native_password' BY 'Spring2014';
-CREATE USER IF NOT EXISTS 'poll_springboot'@'%' IDENTIFIED WITH 'mysql_native_password' BY 'Spring2014';
-
-GRANT ALL PRIVILEGES ON poll.* TO 'poll_springboot'@'localhost';
-GRANT ALL PRIVILEGES ON poll.* TO 'poll_springboot'@'%';
-
+-- springboot 사용자용
+CREATE USER 'everypoll_springboot'@'%' IDENTIFIED BY 'Spring2014';
+GRANT ALL PRIVILEGES ON poll.* TO 'everypoll_springboot'@'%';
 FLUSH PRIVILEGES;
