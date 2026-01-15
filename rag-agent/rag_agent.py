@@ -1,3 +1,4 @@
+from threading import Lock
 from typing import List, Dict, Any, Optional, Literal
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
@@ -29,6 +30,50 @@ embedding_model = OpenAIEmbeddings(
 
 print("✅ 임베딩 모델 연결 완료")
 
+class DocumentManager:
+    def __init__(self):
+        self.documents: List[Document] = []
+        self.current_index: int = 0
+        self.lock = Lock()
+    
+    def add_documents(self, contents: List[str], source: str = "api") -> List[Document]:
+        """문서 추가 및 인덱싱"""
+        with self.lock:
+            new_docs = []
+            for content in contents:
+                doc = Document(
+                    page_content=content,
+                    metadata={
+                        "source": source,
+                        "index": self.current_index,
+                        "id": str(uuid.uuid4())
+                    }
+                )
+                new_docs.append(doc)
+                self.documents.append(doc)
+                self.current_index += 1
+            return new_docs
+    
+    def get_all_documents(self) -> List[Document]:
+        """모든 문서 조회"""
+        return self.documents
+    
+    def get_document_count(self) -> int:
+        """문서 수 조회"""
+        return len(self.documents)
+    
+    def delete_document(self, doc_id: str) -> bool:
+        """문서 삭제 (ID 기반)"""
+        with self.lock:
+            for i, doc in enumerate(self.documents):
+                if doc.metadata.get("id") == doc_id:
+                    self.documents.pop(i)
+                    return True
+            return False
+
+# 문서 관리자 인스턴스
+doc_manager = DocumentManager()
+
 sentences = [
     "반품은 구매 후 30일 이내에만 가능하며, 영수증이 필요합니다.",
     "배송은 평일 기준 2~3일 소요되며, 도서 산간 지역은 하루 더 걸립니다.",
@@ -40,22 +85,16 @@ sentences = [
     "제품 하자 시 전액 환불 또는 교환이 가능합니다."
 ]
 
-langchain_docs = [
-    Document(
-        page_content=s,
-        metadata={"source": "manual", "index": i}
-    ) 
-    for i, s in enumerate(sentences)
-]
+initial_docs = doc_manager.add_documents(sentences, source="manual")
 
-print(f"📚 {len(langchain_docs)}개 문서를 벡터 스토어에 로드 중...")
+print(f"📚 {len(initial_docs)}개 문서를 벡터 스토어에 로드 중...")
 
 vectorstore = InMemoryVectorStore.from_documents(
-    documents=langchain_docs,
+    documents=initial_docs,
     embedding=embedding_model
 )
 
-print(f"✅ 벡터 스토어 생성 완료 ({len(langchain_docs)}개 문서)")
+print(f"✅ 벡터 스토어 생성 완료 ({doc_manager.get_document_count()}개 문서)")
 
 retriever = vectorstore.as_retriever(
     search_type="similarity",
@@ -136,6 +175,27 @@ class ChatResponse(BaseModel):
     answer: str
     sources: List[str]
 
+class AddDocumentsRequest(BaseModel):
+    documents: List[str]
+    source: Optional[str] = "api"
+
+class AddDocumentsResponse(BaseModel):
+    message: str
+    added_count: int
+    total_count: int
+    documents: List[Dict[str, Any]]
+
+class DocumentResponse(BaseModel):
+    id: str
+    content: str
+    source: str
+    index: int
+
+class SearchResult(BaseModel):
+    content: str
+    metadata: Dict[str, Any]
+    score: Optional[float] = None
+
 @app.get("/health")
 def health():
     """헬스체크"""
@@ -143,7 +203,7 @@ def health():
         "status": "healthy",
         "embedding_api": EMBEDDING_API_URL,
         "llm_api": LLM_API_URL,
-        "documents_count": len(langchain_docs)
+        "documents_count": doc_manager.get_document_count()
     }
 
 @app.post("/api/v1/chat", response_model=ChatResponse)
@@ -181,19 +241,36 @@ def chat(request: ChatRequest):
         print(f"❌ 에러: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/v1/documents")
-def add_documents(documents: List[str]):
+@app.post("/api/v1/documents", response_model=AddDocumentsResponse)
+def add_documents(request: AddDocumentsRequest):
     """문서 추가 (런타임에 추가)"""
     try:
-        new_docs = [
-            Document(page_content=doc, metadata={"source": "api"})
-            for doc in documents
-        ]
+        new_docs = doc_manager.add_documents(
+            contents=request.documents,
+            source=request.source
+        )
         
         # 벡터 스토어에 추가
         vectorstore.add_documents(new_docs)
         
-        return {"message": f"{len(new_docs)}개 문서 추가 완료"}
+        added_docs_info = [
+            {
+                "id": doc.metadata["id"],
+                "content": doc.page_content,
+                "source": doc.metadata["source"],
+                "index": doc.metadata["index"]
+            }
+            for doc in new_docs
+        ]
+        
+        print(f"📝 {len(new_docs)}개 문서 추가됨 (총 {doc_manager.get_document_count()}개)")
+        
+        return AddDocumentsResponse(
+            message=f"{len(new_docs)}개 문서 추가 완료",
+            added_count=len(new_docs),
+            total_count=doc_manager.get_document_count(),
+            documents=added_docs_info
+        )
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
@@ -201,9 +278,12 @@ def add_documents(documents: List[str]):
 def search(query: str, k: int = 3):
     """직접 검색"""
     try:
-        docs = retriever.invoke(query)
+        docs = vectorstore.similarity_search(query, k=k)
+        
         return {
             "query": query,
+            "k": k,
+            "results_count": len(docs),
             "results": [
                 {
                     "content": doc.page_content,
@@ -218,16 +298,36 @@ def search(query: str, k: int = 3):
 @app.get("/api/v1/documents")
 def list_documents():
     """저장된 문서 목록"""
+    all_docs = doc_manager.get_all_documents()
     return {
-        "total": len(langchain_docs),
+        "total": len(all_docs),
         "documents": [
             {
+                "id": doc.metadata.get("id"),
                 "content": doc.page_content,
-                "metadata": doc.metadata
+                "source": doc.metadata.get("source"),
+                "index": doc.metadata.get("index")
             }
-            for doc in langchain_docs
+            for doc in all_docs
         ]
     }
+    
+@app.delete("/api/v1/documents/{doc_id}")
+def delete_document(doc_id: str):
+    """문서 삭제"""
+    try:
+        success = doc_manager.delete_document(doc_id)
+        if success:
+            return {
+                "message": f"문서 {doc_id} 삭제 완료",
+                "total_count": doc_manager.get_document_count()
+            }
+        else:
+            raise HTTPException(status_code=404, detail=f"문서 {doc_id}를 찾을 수 없습니다")
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
 
 if __name__ == "__main__":
     import uvicorn
