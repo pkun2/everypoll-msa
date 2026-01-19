@@ -10,6 +10,8 @@
 
 # build
 build/
+**/bin/
+*.class
 
 # Gradle 캐시
 .gradle/
@@ -54,3 +56,4 @@ frontend/node_modules
 npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
+
