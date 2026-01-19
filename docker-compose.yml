@@ -84,7 +84,7 @@ services:
       KAFKA_NUM_PARTITIONS: 3
     healthcheck:
       # test: ["CMD-SHELL", "cat < /dev/null > /dev/tcp/localhost/9092"]
-      test: ["CMD-SHELL", "cat < /dev/null > /dev/tcp/localhost/9092"]
+      test: ["CMD-SHELL", "nc -z localhost 9092 || exit 1"]  
       interval: 15s
       timeout: 10s
       retries: 10
@@ -150,93 +150,93 @@ services:
       retries: 5
     networks:
       - everypoll-net
-  bge-m3:
-    image: vllm/vllm-openai:latest
-    container_name: bge-m3
-    runtime: nvidia
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=0
-      - LD_LIBRARY_PATH=/usr/lib/wsl/lib
-    ports:
-      - "8000:8000"
-    volumes:
-      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
-      - /usr/lib/wsl/lib:/usr/lib/wsl/lib:ro
-    ipc: host
-    shm_size: '2gb'
-    command: >
-      --model BAAI/bge-m3
-      --dtype auto
-      --gpu-memory-utilization 0.12
-      --max-model-len 8192
-      --trust-remote-code
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 30
-      start_period: 60s
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
-    networks:
-      - everypoll-net
-  qwen3-8b-gptq-4bit:
-    image: vllm/vllm-openai:latest
-    container_name: qwen3-8b-gptq-4bit
-    depends_on:
-      bge-m3:
-        condition: service_healthy
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    ports:
-      - "8001:8000"
-    volumes:
-      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
-      - /usr/lib/wsl/lib:/usr/lib/wsl/lib:ro  # WSL CUDA 라이브러리
-    environment:
-      - VLLM_ALLOW_RUNTIME_LORA_UPDATING=1
-      - LD_LIBRARY_PATH=/usr/lib/wsl/lib  # WSL CUDA 라이브러리 경로
-      - NVIDIA_VISIBLE_DEVICES=all
-    command: >
-      --model pkun2/qwen3_4bit_mixed_kr_2_gptq
-      --gpu-memory-utilization 0.7
-      --max-model-len 8192
-      --enable-auto-tool-choice
-      --tool-call-parser hermes
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 30
-      start_period: 60s  
-    networks:
-      - everypoll-net
-  rag-agent:
-    build: ./rag-agent
-    container_name: rag-agent
-    ports:
-      - "8002:8000"
-    environment:
-      - EMBEDDING_API_URL=http://bge-m3:8000/v1
-      - LLM_API_URL=http://qwen3-8b-gptq-4bit:8000/v1
-    depends_on:
-      bge-m3:
-        condition: service_healthy
-      qwen3-8b-gptq-4bit: 
-        condition: service_healthy
-    networks:
-      - everypoll-net
-    command: python rag_agent.py
+#   bge-m3:
+#     image: vllm/vllm-openai:latest
+#     container_name: bge-m3
+#     runtime: nvidia
+#     environment:
+#       - NVIDIA_VISIBLE_DEVICES=0
+#       - LD_LIBRARY_PATH=/usr/lib/wsl/lib
+#     ports:
+#       - "8000:8000"
+#     volumes:
+#       - ${HOME}/.cache/huggingface:/root/.cache/huggingface
+#       - /usr/lib/wsl/lib:/usr/lib/wsl/lib:ro
+#     ipc: host
+#     shm_size: '2gb'
+#     command: >
+#       --model BAAI/bge-m3
+#       --dtype auto
+#       --gpu-memory-utilization 0.12
+#       --max-model-len 8192
+#       --trust-remote-code
+#     healthcheck:
+#       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+#       interval: 10s
+#       timeout: 5s
+#       retries: 30
+#       start_period: 60s
+#     deploy:
+#       resources:
+#         reservations:
+#           devices:
+#             - driver: nvidia
+#               count: 1
+#               capabilities: [gpu]
+#     networks:
+#       - everypoll-net
+#   qwen3-8b-gptq-4bit:
+#     image: vllm/vllm-openai:latest
+#     container_name: qwen3-8b-gptq-4bit
+#     depends_on:
+#       bge-m3:
+#         condition: service_healthy
+#     deploy:
+#       resources:
+#         reservations:
+#           devices:
+#             - driver: nvidia
+#               count: all
+#               capabilities: [gpu]
+#     ports:
+#       - "8001:8000"
+#     volumes:
+#       - ${HOME}/.cache/huggingface:/root/.cache/huggingface
+#       - /usr/lib/wsl/lib:/usr/lib/wsl/lib:ro  # WSL CUDA 라이브러리
+#     environment:
+#       - VLLM_ALLOW_RUNTIME_LORA_UPDATING=1
+#       - LD_LIBRARY_PATH=/usr/lib/wsl/lib  # WSL CUDA 라이브러리 경로
+#       - NVIDIA_VISIBLE_DEVICES=all
+#     command: >
+#       --model pkun2/qwen3_4bit_mixed_kr_2_gptq
+#       --gpu-memory-utilization 0.7
+#       --max-model-len 8192
+#       --enable-auto-tool-choice
+#       --tool-call-parser hermes
+#     healthcheck:
+#       test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+#       interval: 10s
+#       timeout: 5s
+#       retries: 30
+#       start_period: 60s  
+#     networks:
+#       - everypoll-net
+#   rag-agent:
+#     build: ./rag-agent
+#     container_name: rag-agent
+#     ports:
+#       - "8002:8000"
+#     environment:
+#       - EMBEDDING_API_URL=http://bge-m3:8000/v1
+#       - LLM_API_URL=http://qwen3-8b-gptq-4bit:8000/v1
+#     depends_on:
+#       bge-m3:
+#         condition: service_healthy
+#       qwen3-8b-gptq-4bit: 
+#         condition: service_healthy
+#     networks:
+#       - everypoll-net
+#     command: python rag_agent.py
 networks:
   everypoll-net:
     driver: bridge
