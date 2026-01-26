@@ -49,6 +49,25 @@ services:
       - everypoll-net
     env_file:
       - ./pollService/.env
+  vote-service:
+    build:
+      context: .
+      dockerfile: voteService/Dockerfile
+    container_name: "vote-service"
+    ports:
+      - "0.0.0.0:8083:8083"
+    depends_on:
+      kafka-kraft:
+        condition: service_healthy 
+      vote-mysql:
+        condition: service_healthy
+      vote-redis:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - everypoll-net
+    env_file:
+      - ./voteService/.env
   kafka-kraft: 
     # image: confluentinc/cp-kafka:8.1.0.arm64 # 라즈베리파이용
     image: apache/kafka:4.1.1 # wsl용 
@@ -89,6 +108,28 @@ services:
       timeout: 10s
       retries: 10
       start_period: 30s
+    networks:
+      - everypoll-net
+  vote-mysql:
+    image: mysql:8.0
+    container_name: vote-mysql
+    ports:
+      - "3308:3306"
+    environment:
+      MYSQL_ROOT_PASSWORD: dyddlsch2014
+      TZ: Asia/Seoul
+    volumes:
+      - vote_mysql_data:/var/lib/mysql
+      - ./vote-init-scripts:/docker-entrypoint-initdb.d
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      interval: 15s
+      timeout: 30s
+      retries: 10
     networks:
       - everypoll-net
   poll-mysql:
@@ -133,6 +174,21 @@ services:
       interval: 15s
       timeout: 30s
       retries: 10
+    networks:
+      - everypoll-net
+  vote-redis:
+    image: redis:alpine
+    container_name: vote-redis
+    ports: 
+      - "6380:6379"
+    volumes:
+      - vote_redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
     networks:
       - everypoll-net
   token-redis:
@@ -243,5 +299,7 @@ networks:
 volumes:
   poll_mysql_data:
   auth_mysql_data:
+  vote_mysql_data:
+  vote_redis_data: {}
   token_redis_data: {}
   jenkins_home:

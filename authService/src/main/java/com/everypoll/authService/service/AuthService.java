@@ -12,18 +12,20 @@ import org.springframework.stereotype.Service;
 import com.everypoll.authService.dto.LoginRequest;
 import com.everypoll.authService.dto.LoginResponse;
 import com.everypoll.authService.dto.SignUpRequest;
+import com.everypoll.authService.event.UserEventPublisher;
 import com.everypoll.authService.model.User;
 import com.everypoll.authService.repository.UserRepository;
 import com.everypoll.authService.security.UserDetailsImpl;
 import com.everypoll.common.config.JwtUtil;
-import com.everypoll.common.dto.CreatedUserEvent;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
-@Transactional
+@Slf4j
+@Transactional(readOnly = true)
 public class AuthService {
 
     private final JwtUtil jwtUtil;
@@ -31,8 +33,9 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final KafkaProducerService kafkaProducerService;
+    private final UserEventPublisher eventPublisher;
 
+    @Transactional
     public LoginResponse login(LoginRequest request) {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
@@ -48,13 +51,6 @@ public class AuthService {
 
         refreshTokenService.saveToken(userId, refreshToken);
 
-        CreatedUserEvent event = CreatedUserEvent.builder()
-            .userId(userId)
-            .username(userDetails.getUsername())    
-            .build();
-
-        kafkaProducerService.sendUserCreationEvent(event);
-
         return LoginResponse.builder()
             .accessToken(accessToken)
             .refreshToken(refreshToken)
@@ -64,6 +60,7 @@ public class AuthService {
             .build();
     }
 
+    @Transactional
     public LoginResponse refreshAccessToken(String refreshToken) {
         if(!jwtUtil.validateToken(refreshToken)) {
             throw new IllegalArgumentException("유효하지 않은 토큰입니다.");
@@ -103,6 +100,7 @@ public class AuthService {
             .build();
     }
 
+    @Transactional
     public LoginResponse signUpAndLogin(SignUpRequest request) {
         // 아이디 중복 확인
         if(userRepository.existsByUsername(request.getUsername())) {
@@ -130,6 +128,13 @@ public class AuthService {
         
         User savedUser = userRepository.save(newUser);
 
+        eventPublisher.publishUserCreated(
+            savedUser.getId(),
+            savedUser.getUsername(),
+            savedUser.getEmail(),
+            savedUser.getRoles()
+        );
+
         String accessToken = jwtUtil.generateAccessToken(savedUser.getId().toString(), savedUser.getRoles());
         String refreshToken = jwtUtil.generateRefreshToken(savedUser.getId().toString());
 
@@ -140,10 +145,27 @@ public class AuthService {
                 .username(savedUser.getUsername())
                 .roles(savedUser.getRoles())
                 .build();
-
-
     }
 
+    @Transactional
+    public void deleteUser(Long userId) {
+        log.info("회원 탈퇴 요청 - userId: {}", userId);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다"));
+
+        String username = user.getUsername();
+
+        userRepository.delete(user);
+
+        refreshTokenService.deleteToken(String.valueOf(userId));
+
+        eventPublisher.publishUserDeleted(userId, username);
+
+        log.info("회원 탈퇴 완료 - userId: {}", userId);
+    }
+
+    @Transactional
     public void logout(String userId) {
         refreshTokenService.deleteToken(userId);
     }

@@ -10,12 +10,18 @@ import jakarta.persistence.JoinColumn;
 import jakarta.persistence.Table;
 import jakarta.persistence.UniqueConstraint;
 import lombok.AccessLevel;
+import lombok.AllArgsConstructor;
+import lombok.Builder;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
+import lombok.Setter;
 
 @Entity
 @Getter
+@Setter
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
+@AllArgsConstructor
+@Builder
 @Table(name = "votes", uniqueConstraints = {
         @UniqueConstraint(
             name = "uk_vote_poll_user",
@@ -35,4 +41,8 @@ public class Vote extends BaseTimeEntity {
 
     @JoinColumn(name = "user_id", nullable = false)
     private Long userId;
+
+    public void anonymizeAuthor() {
+        this.userId = -1L;
+    }
 }

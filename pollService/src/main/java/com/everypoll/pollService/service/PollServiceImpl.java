@@ -3,11 +3,15 @@ package com.everypoll.pollService.service;
 import com.everypoll.pollService.dto.PollCreateRequest;
 import com.everypoll.pollService.dto.PollResponse;
 import com.everypoll.pollService.dto.PollUpdateRequest;
+import com.everypoll.pollService.event.PollEventPublisher;
 import com.everypoll.pollService.model.Poll;
 import com.everypoll.pollService.model.PollOption;
 import com.everypoll.pollService.exception.ResourceNotFoundException;
+import com.everypoll.pollService.repository.OptionRepository;
 import com.everypoll.pollService.repository.PollRepository;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -16,12 +20,15 @@ import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
+@Transactional(readOnly = true)
 public class PollServiceImpl implements PollService {
 
     private final PollRepository pollRepository;
+    private final PollEventPublisher eventPublisher;
+    private final OptionRepository pollOptionRepository;
 
     // CREATE
-    @Override
     @Transactional
     public PollResponse createPoll(PollCreateRequest request, String createdBy) {
         Poll poll = Poll.builder()
@@ -32,16 +39,19 @@ public class PollServiceImpl implements PollService {
         request.getOptionTexts().forEach(optionText -> {
             PollOption option = PollOption.builder()
                     .optionText(optionText)
+                    .voteCount(0)
                     .build();
             poll.addOption(option);
         });
 
         Poll savedPoll = pollRepository.save(poll);
+
+        eventPublisher.publishPollCreated(savedPoll);
+
         return PollResponse.from(savedPoll);
     }
 
     // READ (All)
-    @Override
     @Transactional(readOnly = true)
     public List<PollResponse> getAllPolls() {
         return pollRepository.findAll().stream()
@@ -50,7 +60,6 @@ public class PollServiceImpl implements PollService {
     }
 
     // READ (Single)
-    @Override
     @Transactional(readOnly = true)
     public PollResponse getPollById(Long pollId) {
         return pollRepository.findById(pollId)
@@ -59,7 +68,6 @@ public class PollServiceImpl implements PollService {
     }
 
     // UPDATE
-    @Override
     @Transactional
     public PollResponse updatePoll(Long pollId, PollUpdateRequest request, String username) {
         Poll poll = pollRepository.findById(pollId)
@@ -85,9 +93,10 @@ public class PollServiceImpl implements PollService {
     }
 
     // DELETE
-    @Override
     @Transactional
     public void deletePoll(Long pollId, String username) {
+        log.info("투표 삭제 요청 - pollId: {}, username: {}", pollId, username);
+
         Poll poll = pollRepository.findById(pollId)
                 .orElseThrow(() -> new ResourceNotFoundException("Poll", "id", pollId));
         
@@ -98,5 +107,33 @@ public class PollServiceImpl implements PollService {
         }
         
         pollRepository.delete(poll);
+
+        eventPublisher.publishPollDeleted(pollId, username);
+    }
+
+    @Transactional
+    public void handleUserDeleted(Long userId) {
+        log.info("사용자 삭제 처리 - userId: {}", userId);
+
+        // 해당 사용자가 생성한 투표의 createdBy를 익명화
+        List<Poll> userPolls = pollRepository.findByCreatedBy(String.valueOf(userId));
+        userPolls.forEach(poll -> {
+            poll.anonymizeAuthor();
+        });
+        pollRepository.saveAll(userPolls);
+
+        log.info("사용자 투표 익명화 완료 - userId: {}, pollCount: {}", userId, userPolls.size());
+    }
+
+    @Transactional
+    public void incrementVoteCount(Long pollId, Long optionId) {
+        pollOptionRepository.incrementVoteCount(optionId);
+        log.debug("투표 수 증가 - pollId: {}, optionId: {}", pollId, optionId);
+    }
+
+    @Transactional
+    public void decrementVoteCount(Long pollId, Long optionId) {
+        pollOptionRepository.decrementVoteCount(optionId);
+        log.debug("투표 수 감소 - pollId: {}, optionId: {}", pollId, optionId);
     }
 }

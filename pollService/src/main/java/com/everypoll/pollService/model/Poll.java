@@ -43,4 +43,8 @@ public class Poll extends BaseTimeEntity {
     public void updateQuestion(String question) {
         this.question = question;
     }
+
+    public void anonymizeAuthor() {
+        this.createdBy = "deleted_user";
+    }
 }
