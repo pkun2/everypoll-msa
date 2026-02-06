@@ -31,14 +31,20 @@ public class PollServiceImpl implements PollService {
     // CREATE
     @Transactional
     public PollResponse createPoll(PollCreateRequest request, String createdBy) {
+        java.time.LocalDateTime endAt = java.time.LocalDateTime.parse(request.getEndAt(),
+                java.time.format.DateTimeFormatter.ISO_DATE_TIME);
+
         Poll poll = Poll.builder()
-                .question(request.getQuestion())
+                .title(request.getTitle())
+                .description(request.getDescription())
+                .endAt(endAt)
                 .createdBy(createdBy)
                 .build();
 
-        request.getOptionTexts().forEach(optionText -> {
+        request.getOptions().forEach(optionDto -> {
             PollOption option = PollOption.builder()
-                    .optionText(optionText)
+                    .optionText(optionDto.getText())
+                    .displayOrder(optionDto.getDisplayOrder())
                     .voteCount(0)
                     .build();
             poll.addOption(option);
@@ -76,15 +82,17 @@ public class PollServiceImpl implements PollService {
         // 권한 검사: 투표를 생성한 사용자만 수정 가능
         if (!poll.getCreatedBy().equals(username)) {
             // throw new AccessDeniedException("이 투표를 수정할 권한이 없습니다.");
-             throw new RuntimeException("이 투표를 수정할 권한이 없습니다."); // 임시 예외
+            throw new RuntimeException("이 투표를 수정할 권한이 없습니다."); // 임시 예외
         }
 
-        poll.updateQuestion(request.getQuestion());
+        poll.update(request.getTitle(), request.getDescription(),
+                java.time.LocalDateTime.parse(request.getEndAt(), java.time.format.DateTimeFormatter.ISO_DATE_TIME));
 
         poll.getOptions().clear(); // 옵션들 다 지우고 새로 추가
-        request.getOptionTexts().forEach(optionText -> {
+        request.getOptions().forEach(optionDto -> {
             PollOption option = PollOption.builder()
-                    .optionText(optionText)
+                    .optionText(optionDto.getText())
+                    .displayOrder(optionDto.getDisplayOrder())
                     .build();
             poll.addOption(option);
         });
@@ -99,13 +107,13 @@ public class PollServiceImpl implements PollService {
 
         Poll poll = pollRepository.findById(pollId)
                 .orElseThrow(() -> new ResourceNotFoundException("Poll", "id", pollId));
-        
+
         // 권한 검사: 투표를 생성한 사용자만 삭제 가능
         if (!poll.getCreatedBy().equals(username)) {
             // throw new AccessDeniedException("이 투표를 삭제할 권한이 없습니다.");
             throw new RuntimeException("이 투표를 삭제할 권한이 없습니다."); // 임시 예외
         }
-        
+
         pollRepository.delete(poll);
 
         eventPublisher.publishPollDeleted(pollId, username);

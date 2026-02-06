@@ -12,11 +12,13 @@ import lombok.Builder;
 import lombok.Getter;
 
 @Getter
-@Builder 
+@Builder
 @AllArgsConstructor(access = AccessLevel.PRIVATE) // 빌더를 통해서만 생성하도록 강제
 public class PollResponse {
     private Long id;
-    private String question;
+    private String title;
+    private String description;
+    private LocalDateTime endAt;
     private LocalDateTime createdAt;
     private String createdBy;
     private List<OptionResponse> options;
@@ -24,11 +26,13 @@ public class PollResponse {
     public static PollResponse from(Poll poll) {
         return PollResponse.builder()
                 .id(poll.getId())
-                .question(poll.getQuestion())
+                .title(poll.getTitle())
+                .description(poll.getDescription())
+                .endAt(poll.getEndAt())
                 .createdAt(poll.getCreatedAt())
                 .createdBy(poll.getCreatedBy())
                 .options(poll.getOptions().stream()
-                        .map(OptionResponse::from)  
+                        .map(OptionResponse::from)
                         .collect(Collectors.toList()))
                 .build();
     }

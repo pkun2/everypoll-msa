@@ -24,18 +24,20 @@ public class PollEventPublisher {
 
     public void publishPollCreated(Poll poll) {
         List<PollCreatedEvent.OptionInfo> options = poll.getOptions().stream()
-            .map(opt -> PollCreatedEvent.OptionInfo.builder()
-                .optionId(opt.getId())
-                .optionText(opt.getOptionText())
-                .build())
-            .collect(Collectors.toList());
-        
+                .map(opt -> PollCreatedEvent.OptionInfo.builder()
+                        .optionId(opt.getId())
+                        .optionText(opt.getOptionText())
+                        .displayOrder(opt.getDisplayOrder())
+                        .build())
+                .collect(Collectors.toList());
+
         PollCreatedEvent event = PollCreatedEvent.of(
-            poll.getId(), 
-            poll.getQuestion(),
-            poll.getCreatedBy(),
-            options
-        );
+                poll.getId(),
+                poll.getTitle(),
+                poll.getDescription(),
+                poll.getEndAt().toString(),
+                poll.getCreatedBy(),
+                options);
 
         publish(event, String.valueOf(poll.getId()));
     }
@@ -46,9 +48,9 @@ public class PollEventPublisher {
     }
 
     private void publish(Object event, String key) {
-        CompletableFuture<SendResult<String, Object>> future = 
-            kafkaTemplate.send(KafkaConfig.POLL_EVENTS_TOPIC, key, event);
-        
+        CompletableFuture<SendResult<String, Object>> future = kafkaTemplate.send(KafkaConfig.POLL_EVENTS_TOPIC, key,
+                event);
+
         future.whenComplete((result, ex) -> {
             if (ex == null) {
                 log.info("투표 게시글 이벤트 생성됨! - key: {}, event: {}",

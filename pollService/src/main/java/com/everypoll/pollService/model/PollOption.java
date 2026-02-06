@@ -10,7 +10,7 @@ import lombok.*;
 @NoArgsConstructor(access = AccessLevel.PROTECTED)
 @EqualsAndHashCode(of = "id")
 @Table(name = "poll_option")
-@ToString(exclude = {"poll"})
+@ToString(exclude = { "poll" })
 public class PollOption {
     @Id
     @GeneratedValue(strategy = GenerationType.IDENTITY)
@@ -27,4 +27,7 @@ public class PollOption {
     @Builder.Default
     @Column(nullable = false)
     private Integer voteCount = 0;
+
+    @Column(nullable = false)
+    private Integer displayOrder;
 }

@@ -12,13 +12,13 @@ import java.util.ArrayList;
 import java.util.List;
 
 @Entity
-@Getter 
+@Getter
 @Builder
 @AllArgsConstructor
-@NoArgsConstructor(access = AccessLevel.PROTECTED) 
-@EntityListeners(AuditingEntityListener.class) 
+@NoArgsConstructor(access = AccessLevel.PROTECTED)
+@EntityListeners(AuditingEntityListener.class)
 @EqualsAndHashCode(of = "id", callSuper = false)
-@ToString(exclude = {"options"}) 
+@ToString(exclude = { "options" })
 public class Poll extends BaseTimeEntity {
 
     @Id
@@ -26,12 +26,18 @@ public class Poll extends BaseTimeEntity {
     private Long id;
 
     @Column(nullable = false)
-    private String question;
+    private String title;
+
+    @Column(length = 500)
+    private String description;
+
+    @Column(nullable = false)
+    private java.time.LocalDateTime endAt;
 
     @CreatedBy
-    private String createdBy;     
-    
-    @Builder.Default 
+    private String createdBy;
+
+    @Builder.Default
     @OneToMany(mappedBy = "poll", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PollOption> options = new ArrayList<>();
 
@@ -40,8 +46,10 @@ public class Poll extends BaseTimeEntity {
         option.setPoll(this);
     }
 
-    public void updateQuestion(String question) {
-        this.question = question;
+    public void update(String title, String description, java.time.LocalDateTime endAt) {
+        this.title = title;
+        this.description = description;
+        this.endAt = endAt;
     }
 
     public void anonymizeAuthor() {

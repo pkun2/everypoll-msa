@@ -18,7 +18,9 @@ import lombok.experimental.SuperBuilder;
 @EqualsAndHashCode(callSuper = true)
 public class PollCreatedEvent extends BaseEvent {
     private Long pollId;
-    private String question;
+    private String title;
+    private String description;
+    private String endAt;
     private String createdBy;
     private List<OptionInfo> options;
 
@@ -28,16 +30,20 @@ public class PollCreatedEvent extends BaseEvent {
     @Builder
     public static class OptionInfo {
         private Long optionId;
-        private String optionText;    
+        private String optionText;
+        private Integer displayOrder;
     }
 
-    public static PollCreatedEvent of(Long pollId, String question, String createdBy, List<OptionInfo> options) {
+    public static PollCreatedEvent of(Long pollId, String title, String description, String endAt, String createdBy,
+            List<OptionInfo> options) {
         PollCreatedEvent event = PollCreatedEvent.builder()
-            .pollId(pollId)
-            .question(question)
-            .createdBy(createdBy)
-            .options(options)
-            .build();
+                .pollId(pollId)
+                .title(title)
+                .description(description)
+                .endAt(endAt)
+                .createdBy(createdBy)
+                .options(options)
+                .build();
         event.init("POLL_CREATED", "poll-service");
         return event;
     }

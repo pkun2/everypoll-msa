@@ -89,8 +89,34 @@ public class VoteController {
                 "pollId", pollId,
                 "userId", userId,
                 "hasVoted", hasVoted,
-                "votedOptionId", votedOptionId != null ? votedOptionId : "null"
-        ));
+                "votedOptionId", votedOptionId != null ? votedOptionId : "null"));
+    }
+
+    /**
+     * 내 투표 조회 (프론트엔드용)
+     */
+    @GetMapping("/polls/{pollId}/me")
+    public ResponseEntity<VoteResponse> getMyVote(
+            @PathVariable Long pollId,
+            @RequestHeader(value = "X-User-Id") Long userId) {
+
+        log.info("GET /api/votes/polls/{}/me - userId: {}", pollId, userId);
+
+        boolean hasVoted = voteService.hasVoted(pollId, userId);
+        if (!hasVoted) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Long optionId = voteService.getUserVotedOption(pollId, userId);
+
+        // VoteResponse 객체 생성 (실제 Vote 엔티티 없이)
+        VoteResponse response = VoteResponse.builder()
+                .pollId(pollId)
+                .optionId(optionId)
+                .userId(userId)
+                .build();
+
+        return ResponseEntity.ok(response);
     }
 
     /**

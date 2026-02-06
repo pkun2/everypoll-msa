@@ -9,12 +9,26 @@ services:
       - "50000:50000"
     user: "0:1"
     volumes:
-      - jenkins_home:/var/jenkins_home  
-      - /var/run/docker.sock:/var/run/docker.sock  
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - everypoll-net
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    ports:
+      - "3000:3000"
+    networks:
+      - everypoll-net
+    depends_on:
+      - auth-service
+      - poll-service
+      - vote-service
+    restart: always
   auth-service:
-    build:     
+    build:
       context: .
       dockerfile: authService/Dockerfile
     container_name: "auth-service"
@@ -22,7 +36,7 @@ services:
       - "0.0.0.0:8081:8081"
     depends_on:
       kafka-kraft:
-        condition: service_healthy 
+        condition: service_healthy
       auth-mysql:
         condition: service_healthy
       token-redis:
@@ -41,7 +55,7 @@ services:
       - "0.0.0.0:8082:8082"
     depends_on:
       kafka-kraft:
-        condition: service_healthy 
+        condition: service_healthy
       poll-mysql:
         condition: service_healthy
     restart: on-failure
@@ -58,7 +72,7 @@ services:
       - "0.0.0.0:8083:8083"
     depends_on:
       kafka-kraft:
-        condition: service_healthy 
+        condition: service_healthy
       vote-mysql:
         condition: service_healthy
       vote-redis:
@@ -68,7 +82,7 @@ services:
       - everypoll-net
     env_file:
       - ./voteService/.env
-  kafka-kraft: 
+  kafka-kraft:
     # image: confluentinc/cp-kafka:8.1.0.arm64 # 라즈베리파이용
     image: apache/kafka:4.1.1 # wsl용 
     container_name: kafka-kraft
@@ -103,7 +117,7 @@ services:
       KAFKA_NUM_PARTITIONS: 3
     healthcheck:
       # test: ["CMD-SHELL", "cat < /dev/null > /dev/tcp/localhost/9092"]
-      test: ["CMD-SHELL", "nc -z localhost 9092 || exit 1"]  
+      test: [ "CMD-SHELL", "nc -z localhost 9092 || exit 1" ]
       interval: 15s
       timeout: 10s
       retries: 10
@@ -126,7 +140,7 @@ services:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
     healthcheck:
-      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
       interval: 15s
       timeout: 30s
       retries: 10
@@ -148,7 +162,7 @@ services:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
     healthcheck:
-      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
       interval: 15s
       timeout: 30s
       retries: 10
@@ -170,7 +184,7 @@ services:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
     healthcheck:
-      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
       interval: 15s
       timeout: 30s
       retries: 10
@@ -179,13 +193,13 @@ services:
   vote-redis:
     image: redis:alpine
     container_name: vote-redis
-    ports: 
+    ports:
       - "6380:6379"
     volumes:
       - vote_redis_data:/data
     command: redis-server --appendonly yes
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
@@ -194,13 +208,13 @@ services:
   token-redis:
     image: redis:alpine
     container_name: token-redis
-    ports: 
+    ports:
       - "6379:6379"
     volumes:
       - token_redis_data:/data
     command: redis-server --appendonly yes
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
