@@ -72,5 +72,9 @@ export function usePoll(pollId) {
     await fetchPoll()
   }
 
-  return { poll, myVote, loading, error, vote, cancelVote, refetch: fetchPoll }
+  const deletePoll = async () => {
+    await pollAPI.delete(pollId)
+  }
+
+  return { poll, myVote, loading, error, vote, cancelVote, deletePoll, refetch: fetchPoll }
 }

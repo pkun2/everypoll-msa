@@ -104,7 +104,7 @@ public class VoteController {
 
         boolean hasVoted = voteService.hasVoted(pollId, userId);
         if (!hasVoted) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.ok(null);
         }
 
         Long optionId = voteService.getUserVotedOption(pollId, userId);

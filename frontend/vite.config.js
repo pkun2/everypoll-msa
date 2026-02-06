@@ -7,15 +7,15 @@ export default defineConfig({
     port: 3000,
     proxy: {
       '/api/auth': {
-        target: 'http://localhost:8081',
+        target: 'http://auth-service:8081',
         changeOrigin: true
       },
       '/api/polls': {
-        target: 'http://localhost:8082',
+        target: 'http://poll-service:8082',
         changeOrigin: true
       },
       '/api/votes': {
-        target: 'http://localhost:8083',
+        target: 'http://vote-service:8083',
         changeOrigin: true
       },
       // '/api/v1': {

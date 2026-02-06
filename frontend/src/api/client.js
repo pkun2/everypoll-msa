@@ -30,15 +30,84 @@ client.interceptors.request.use((config) => {
   return config
 })
 
-// 응답 인터셉터 - 401 에러 처리
+let isRefreshing = false
+let failedQueue = []
+
+const processQueue = (error, token = null) => {
+  failedQueue.forEach((prom) => {
+    if (error) {
+      prom.reject(error)
+    } else {
+      prom.resolve(token)
+    }
+  })
+  failedQueue = []
+}
+
+// 응답 인터셉터 - 401/403 에러 처리
 client.interceptors.response.use(
   (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('accessToken')
-      localStorage.removeItem('user')
-      window.location.href = '/login'
+  async (error) => {
+    const originalRequest = error.config
+
+    // 401 Unauthorized: 토큰 만료 상황
+    if (error.response?.status === 401 && !originalRequest._retry) {
+      if (isRefreshing) {
+        return new Promise((resolve, reject) => {
+          failedQueue.push({ resolve, reject })
+        })
+          .then((token) => {
+            originalRequest.headers.Authorization = `Bearer ${token}`
+            return client(originalRequest)
+          })
+          .catch((err) => {
+            return Promise.reject(err)
+          })
+      }
+
+      originalRequest._retry = true
+      isRefreshing = true
+
+      const refreshToken = localStorage.getItem('refreshToken')
+      if (!refreshToken) {
+        isRefreshing = false
+        localStorage.removeItem('accessToken')
+        localStorage.removeItem('user')
+        window.location.href = '/login'
+        return Promise.reject(error)
+      }
+
+      try {
+        const response = await axios.post(`${API_URL}/api/auth/refresh`, {
+          refreshToken
+        })
+        const { accessToken, refreshToken: newRefreshToken } = response.data
+
+        localStorage.setItem('accessToken', accessToken)
+        localStorage.setItem('refreshToken', newRefreshToken)
+
+        client.defaults.headers.common.Authorization = `Bearer ${accessToken}`
+        originalRequest.headers.Authorization = `Bearer ${accessToken}`
+
+        processQueue(null, accessToken)
+        return client(originalRequest)
+      } catch (refreshError) {
+        processQueue(refreshError, null)
+        localStorage.removeItem('accessToken')
+        localStorage.removeItem('refreshToken')
+        localStorage.removeItem('user')
+        window.location.href = '/login'
+        return Promise.reject(refreshError)
+      } finally {
+        isRefreshing = false
+      }
     }
+
+    // 403 Forbidden: 권한 부족 상황
+    if (error.response?.status === 403) {
+      alert('해당 요청에 대한 권한이 없습니다.')
+    }
+
     return Promise.reject(error)
   }
 )

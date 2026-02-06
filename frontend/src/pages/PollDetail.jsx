@@ -7,7 +7,7 @@ function PollDetail() {
   const { pollId } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { poll, myVote, loading, error, vote, cancelVote } = usePoll(pollId)
+  const { poll, myVote, loading, error, vote, cancelVote, deletePoll } = usePoll(pollId)
 
   if (loading) {
     return (
@@ -57,6 +57,20 @@ function PollDetail() {
       }
     }
   }
+
+  const handleDeletePoll = async () => {
+    if (window.confirm('정말로 이 투표를 삭제하시겠습니까? 이 작업은 되돌릴 수 없습니다.')) {
+      try {
+        await deletePoll()
+        alert('투표가 성공적으로 삭제되었습니다.')
+        navigate('/')
+      } catch (err) {
+        alert(err.response?.data?.message || '투표 삭제에 실패했습니다.')
+      }
+    }
+  }
+
+  const isAuthor = user && poll.createdBy === user.userId
 
   return (
     <div className="max-w-2xl mx-auto">
@@ -108,6 +122,16 @@ function PollDetail() {
             className="w-full mt-4 py-2 text-red-600 border border-red-200 rounded-lg hover:bg-red-50 transition"
           >
             투표 취소
+          </button>
+        )}
+
+        {/* 투표 삭제 버튼 (작성자 전용) */}
+        {isAuthor && (
+          <button
+            onClick={handleDeletePoll}
+            className="w-full mt-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition font-medium"
+          >
+            투표 게시글 삭제
           </button>
         )}
       </div>
