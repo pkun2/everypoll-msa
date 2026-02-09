@@ -44,9 +44,9 @@ export function usePoll(pollId) {
     }
   }, [pollId])
 
-  const fetchPoll = async () => {
+  const fetchPoll = async (silent = false) => {
     try {
-      setLoading(true)
+      if (!silent) setLoading(true)
       const [pollRes, voteRes] = await Promise.all([
         pollAPI.getById(pollId),
         voteAPI.getMyVote(pollId).catch(() => null)
@@ -56,20 +56,22 @@ export function usePoll(pollId) {
     } catch (err) {
       setError(err.message)
     } finally {
-      setLoading(false)
+      if (!silent) setLoading(false)
     }
   }
 
   const vote = async (optionId) => {
     const response = await voteAPI.vote(pollId, optionId)
-    await fetchPoll()
+    // 백엔드 동기화(Kafka)를 위한 짧은 지연 후 데이터 갱신
+    setTimeout(() => fetchPoll(true), 300)
     return response.data
   }
 
   const cancelVote = async () => {
     await voteAPI.cancelVote(pollId)
     setMyVote(null)
-    await fetchPoll()
+    // 백엔드 동기화(Kafka)를 위한 짧은 지연 후 데이터 갱신
+    setTimeout(() => fetchPoll(true), 300)
   }
 
   const deletePoll = async () => {
