@@ -1,339 +1,204 @@
-from threading import Lock
-from typing import List, Dict, Any, Optional, Literal
-from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
-from langchain_core.messages import BaseMessage, AIMessage, HumanMessage, ToolMessage, AnyMessage
-from langchain_core.tools import BaseTool, tool
-from langchain_openai import OpenAIEmbeddings, ChatOpenAI
-from langchain_core.documents import Document
-from langchain_core.vectorstores import InMemoryVectorStore
-from langgraph.graph import StateGraph, START, END
-from typing_extensions import TypedDict, Annotated
-import json
-import uuid
-import operator
 import os
+import json
+import asyncio
+from typing import List, Dict, Any, Optional, Literal
+from fastapi import FastAPI
+from pydantic import BaseModel
+from langchain_openai import OpenAIEmbeddings, ChatOpenAI
+from langchain_chroma import Chroma
+from langchain_core.documents import Document
+from langchain_core.messages import HumanMessage, SystemMessage
+from langgraph.graph import StateGraph, START, END
+from typing_extensions import TypedDict
 
-app = FastAPI(title="RAG Agent API")
+from core.filter import TextCleaner
+from core.batcher import CommentBatcher
+from services.kafka_consumer import KafkaConsumerService
 
+app = FastAPI(title="EveryPoll RAG Agent API")
+
+# 환경 변수 설정
 EMBEDDING_API_URL = os.getenv("EMBEDDING_API_URL", "http://localhost:8000/v1")
 LLM_API_URL = os.getenv("LLM_API_URL", "http://localhost:8001/v1")
+KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka-kraft:9092")
+PERSIST_DIRECTORY = "./chroma_db"
 
-print(f"🔧 Embedding API: {EMBEDDING_API_URL}")
-print(f"🔧 LLM API: {LLM_API_URL}")
-
+# 모델 초기화
 embedding_model = OpenAIEmbeddings(
     model="BAAI/bge-m3",
     openai_api_base=EMBEDDING_API_URL,
     openai_api_key="dummy"
 )
 
-print("✅ 임베딩 모델 연결 완료")
-
-class DocumentManager:
-    def __init__(self):
-        self.documents: List[Document] = []
-        self.current_index: int = 0
-        self.lock = Lock()
-    
-    def add_documents(self, contents: List[str], source: str = "api") -> List[Document]:
-        """문서 추가 및 인덱싱"""
-        with self.lock:
-            new_docs = []
-            for content in contents:
-                doc = Document(
-                    page_content=content,
-                    metadata={
-                        "source": source,
-                        "index": self.current_index,
-                        "id": str(uuid.uuid4())
-                    }
-                )
-                new_docs.append(doc)
-                self.documents.append(doc)
-                self.current_index += 1
-            return new_docs
-    
-    def get_all_documents(self) -> List[Document]:
-        """모든 문서 조회"""
-        return self.documents
-    
-    def get_document_count(self) -> int:
-        """문서 수 조회"""
-        return len(self.documents)
-    
-    def delete_document(self, doc_id: str) -> bool:
-        """문서 삭제 (ID 기반)"""
-        with self.lock:
-            for i, doc in enumerate(self.documents):
-                if doc.metadata.get("id") == doc_id:
-                    self.documents.pop(i)
-                    return True
-            return False
-
-# 문서 관리자 인스턴스
-doc_manager = DocumentManager()
-
-sentences = [
-    "반품은 구매 후 30일 이내에만 가능하며, 영수증이 필요합니다.",
-    "배송은 평일 기준 2~3일 소요되며, 도서 산간 지역은 하루 더 걸립니다.",
-    "회원 가입 시 10% 할인 쿠폰을 즉시 지급합니다.",
-    "고객 센터 운영 시간은 오전 9시부터 오후 6시까지입니다.",
-    "환불은 계좌 이체로 처리되며, 3~5 영업일 소요됩니다.",
-    "무료 배송은 3만원 이상 구매 시 적용됩니다.",
-    "주말 및 공휴일에는 고객센터가 운영되지 않습니다.",
-    "제품 하자 시 전액 환불 또는 교환이 가능합니다."
-]
-
-initial_docs = doc_manager.add_documents(sentences, source="manual")
-
-print(f"📚 {len(initial_docs)}개 문서를 벡터 스토어에 로드 중...")
-
-vectorstore = InMemoryVectorStore.from_documents(
-    documents=initial_docs,
-    embedding=embedding_model
-)
-
-print(f"✅ 벡터 스토어 생성 완료 ({doc_manager.get_document_count()}개 문서)")
-
-retriever = vectorstore.as_retriever(
-    search_type="similarity",
-    search_kwargs={"k": 3}
-)
-
-@tool
-def retrieve_blog_posts(query: str) -> str:
-    """
-    사용자의 질문과 의미적으로 가장 유사한 회사 매뉴얼 내용을 검색합니다.
-    
-    Args:
-        query: 검색할 질문 내용
-    """
-    print(f"🔍 검색 쿼리: {query}")
-    docs = retriever.invoke(query)
-    print(f"📄 검색된 문서 수: {len(docs)}")
-    return "\n\n".join([doc.page_content for doc in docs])
-
-retriever_tool = retrieve_blog_posts
-
 llm = ChatOpenAI(
     model="pkun2/qwen3_4bit_mixed_kr_2_gptq",
     openai_api_base=LLM_API_URL,
     openai_api_key="dummy",
-    temperature=0.7,
-    max_tokens=2048
+    temperature=0.1
 )
 
-print("✅ LLM 연결 완료")
-
-tools = [retrieve_blog_posts]
-tools_by_name = {tool.name: tool for tool in tools}
-llm_with_tools = llm.bind_tools(tools)
-
-class MessagesState(TypedDict):
-    messages: Annotated[list[AnyMessage], operator.add]
-
-def should_continue(state: MessagesState) -> Literal["tool_node", "end"]:
-    messages = state["messages"]
-    last_message = messages[-1]
-    if hasattr(last_message, "tool_calls") and last_message.tool_calls:
-        return "tool_node"
-    return "end"
-
-def llm_call(state: MessagesState):
-    """LLM 호출"""
-    response = llm_with_tools.invoke(state["messages"])
-    return {"messages": [response]}
-
-from langgraph.prebuilt import ToolNode
-tool_node = ToolNode(tools)
-
-# 그래프 빌드
-agent_builder = StateGraph(MessagesState)
-agent_builder.add_node("llm_call", llm_call)
-agent_builder.add_node("tool_node", tool_node)
-agent_builder.add_edge(START, "llm_call")
-agent_builder.add_conditional_edges(
-    "llm_call",
-    should_continue,
-    {
-        "tool_node": "tool_node",
-        "end": END
-    }
+# 벡터 DB 초기화 (Chroma)
+vectorstore = Chroma(
+    collection_name="everypoll_insights",
+    embedding_function=embedding_model,
+    persist_directory=PERSIST_DIRECTORY
 )
-agent_builder.add_edge("tool_node", "llm_call")
 
-agent = agent_builder.compile()
+# 유틸리티 초기화
+cleaner = TextCleaner()
 
-print("✅ LangGraph 에이전트 빌드 완료")
+# --- LangGraph: 심층 정책 검증 (Deep Policy Check) ---
 
-class ChatRequest(BaseModel):
-    query: str
-    conversation_id: Optional[str] = "default"
+class PolicyCheckState(TypedDict):
+    poll_id: str
+    title: str
+    description: str
+    guidelines: str
+    analysis: str
+    is_violation: bool
+    reason: str
 
-class ChatResponse(BaseModel):
-    answer: str
-    sources: List[str]
+def retrieve_guidelines(state: PolicyCheckState):
+    """가이드라인 문서 검색"""
+    # 실제로는 벡터 스토어에서 'guideline' 타입 문서를 검색해야 함
+    # 여기서는 예시 문구를 반환
+    docs = vectorstore.similarity_search("policy guideline", k=1)
+    if docs:
+        context = docs[0].page_content
+    else:
+        context = "기본 정책: 혐오 표현, 정치적 편향성, 분란 조장, 욕설이 포함된 투표는 금지됩니다."
+    return {"guidelines": context}
 
-class AddDocumentsRequest(BaseModel):
-    documents: List[str]
-    source: Optional[str] = "api"
-
-class AddDocumentsResponse(BaseModel):
-    message: str
-    added_count: int
-    total_count: int
-    documents: List[Dict[str, Any]]
-
-class DocumentResponse(BaseModel):
-    id: str
-    content: str
-    source: str
-    index: int
-
-class SearchResult(BaseModel):
-    content: str
-    metadata: Dict[str, Any]
-    score: Optional[float] = None
-
-@app.get("/health")
-def health():
-    """헬스체크"""
-    return {
-        "status": "healthy",
-        "embedding_api": EMBEDDING_API_URL,
-        "llm_api": LLM_API_URL,
-        "documents_count": doc_manager.get_document_count()
-    }
-
-@app.post("/api/v1/chat", response_model=ChatResponse)
-def chat(request: ChatRequest):
-    """RAG 채팅 엔드포인트"""
-    try:
-        print(f"\n{'='*50}")
-        print(f"💬 질문: {request.query}")
-        print(f"🆔 대화 ID: {request.conversation_id}")
-        
-        # 에이전트 실행
-        messages = [HumanMessage(content=request.query)]
-        result = agent.invoke({"messages": messages})
-        
-        # 최종 답변 추출
-        final_message = result["messages"][-1]
-        answer = final_message.content
-        
-        # 검색된 소스 추출
-        sources = []
-        for msg in result["messages"]:
-            if isinstance(msg, ToolMessage):
-                sources.append(msg.content)
-        
-        print(f"✅ 답변: {answer}")
-        print(f"📚 소스 개수: {len(sources)}")
-        print(f"{'='*50}\n")
-        
-        return ChatResponse(
-            answer=answer,
-            sources=sources
-        )
+async def analyze_compliance(state: PolicyCheckState):
+    """LLM을 통한 정책 위반 여부 분석"""
+    prompt = f"""
+    [검토 기준]
+    {state['guidelines']}
     
-    except Exception as e:
-        print(f"❌ 에러: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+    [투표 정보]
+    제목: {state['title']}
+    설명: {state['description']}
+    
+    위 투표가 검토 기준을 위반하는지 분석해 줘.
+    위반 가능성이 높다면 "VIOLATION"으로 시작하고 이유를 적어줘.
+    문제가 없다면 "PASS"라고 적어줘.
+    """
+    response = await llm.ainvoke(prompt)
+    return {"analysis": response.content}
 
-@app.post("/api/v1/documents", response_model=AddDocumentsResponse)
-def add_documents(request: AddDocumentsRequest):
-    """문서 추가 (런타임에 추가)"""
-    try:
-        new_docs = doc_manager.add_documents(
-            contents=request.documents,
-            source=request.source
-        )
-        
-        # 벡터 스토어에 추가
-        vectorstore.add_documents(new_docs)
-        
-        added_docs_info = [
-            {
-                "id": doc.metadata["id"],
-                "content": doc.page_content,
-                "source": doc.metadata["source"],
-                "index": doc.metadata["index"]
-            }
-            for doc in new_docs
-        ]
-        
-        print(f"📝 {len(new_docs)}개 문서 추가됨 (총 {doc_manager.get_document_count()}개)")
-        
-        return AddDocumentsResponse(
-            message=f"{len(new_docs)}개 문서 추가 완료",
-            added_count=len(new_docs),
-            total_count=doc_manager.get_document_count(),
-            documents=added_docs_info
-        )
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+def determine_action(state: PolicyCheckState):
+    """분석 결과에 따른 액션 결정"""
+    analysis = state['analysis'].upper()
+    is_violation = "VIOLATION" in analysis or "위반" in state['analysis']
+    return {
+        "is_violation": is_violation,
+        "reason": state['analysis'] if is_violation else "Pass"
+    }
 
-@app.get("/api/v1/search")
-def search(query: str, k: int = 3):
-    """직접 검색"""
+# 그래프 구성
+workflow = StateGraph(PolicyCheckState)
+workflow.add_node("retrieve_guidelines", retrieve_guidelines)
+workflow.add_node("analyze_compliance", analyze_compliance)
+workflow.add_node("determine_action", determine_action)
+
+workflow.add_edge(START, "retrieve_guidelines")
+workflow.add_edge("retrieve_guidelines", "analyze_compliance")
+workflow.add_edge("analyze_compliance", "determine_action")
+workflow.add_edge("determine_action", END)
+
+policy_checker_app = workflow.compile()
+
+
+# --- 비즈니스 로직: 댓글 요약 및 인덱싱 ---
+async def summarize_and_index_comments(poll_id: str, comments: List[str]):
+    """배치된 댓글을 요약하여 벡터 DB에 저장"""
     try:
-        docs = vectorstore.similarity_search(query, k=k)
+        combined_comments = "\n".join([f"- {c}" for c in comments])
+        prompt = f"""
+        다음은 투표(ID: {poll_id})에 달린 댓글들입니다. 
+        이 내용들을 종합하여 핵심 의견과 분위기를 2~3문장으로 요약해 주세요.
         
-        return {
-            "query": query,
-            "k": k,
-            "results_count": len(docs),
-            "results": [
-                {
-                    "content": doc.page_content,
-                    "metadata": doc.metadata
-                }
-                for doc in docs
-            ]
+        댓글 목록:
+        {combined_comments}
+        """
+        response = await llm.ainvoke([
+            SystemMessage(content="너는 투표 결과를 분석하는 전문 어시스턴트야."),
+            HumanMessage(content=prompt)
+        ])
+        
+        summary = response.content
+        doc = Document(
+            page_content=f"[댓글 요약] 투표 {poll_id}: {summary}",
+            metadata={"poll_id": poll_id, "type": "comment_summary", "timestamp": str(asyncio.get_event_loop().time())}
+        )
+        vectorstore.add_documents([doc])
+        print(f"✅ Indexed summary for poll {poll_id}")
+    except Exception as e:
+        print(f"❌ Error in summarization: {e}")
+
+batcher = CommentBatcher(callback=summarize_and_index_comments)
+
+
+# --- Kafka 핸들러 ---
+async def handle_comment_created(data: dict):
+    poll_id = data.get("pollId")
+    content = data.get("content")
+    if not poll_id or not content: return
+
+    if cleaner.is_meaningless(content): return
+    cleaned_content = cleaner.clean(content)
+    await batcher.add_comment(str(poll_id), cleaned_content)
+
+async def handle_poll_created(data: dict):
+    """투표 생성 이벤트 -> LangGraph 심층 검증 실행"""
+    poll_id = data.get("id")
+    title = data.get("title")
+    description = data.get("description")
+    
+    print(f"🕵️ Deep checking poll {poll_id}...")
+    
+    # LangGraph 실행
+    initial_state = {
+        "poll_id": str(poll_id),
+        "title": title or "",
+        "description": description or "",
+        "guidelines": "",
+        "analysis": "",
+        "is_violation": False,
+        "reason": ""
+    }
+    
+    result = await policy_checker_app.ainvoke(initial_state)
+    
+    if result["is_violation"]:
+        print(f"⚠️ Policy Violation detected in poll {poll_id}: {result['reason']}")
+        # TODO: pollService.blind_poll(poll_id) API Call
+    else:
+        print(f"✅ Poll {poll_id} passed deep check.")
+
+
+# --- FastAPI 엔드포인트 ---
+class CheckRequest(BaseModel):
+    text: str
+
+@app.post("/api/v1/verify/fast")
+async def fast_verify(request: CheckRequest):
+    """Fast Sync Check (동기)"""
+    is_bad = cleaner.has_slang(request.text)
+    return {"is_allowed": not is_bad, "reason": "slang" if is_bad else None}
+
+@app.on_event("startup")
+async def startup_event():
+    kafka_service = KafkaConsumerService(
+        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+        topics=["comment-created", "poll-created"],
+        handler_map={
+            "comment-created": handle_comment_created,
+            "poll-created": handle_poll_created
         }
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
-
-@app.get("/api/v1/documents")
-def list_documents():
-    """저장된 문서 목록"""
-    all_docs = doc_manager.get_all_documents()
-    return {
-        "total": len(all_docs),
-        "documents": [
-            {
-                "id": doc.metadata.get("id"),
-                "content": doc.page_content,
-                "source": doc.metadata.get("source"),
-                "index": doc.metadata.get("index")
-            }
-            for doc in all_docs
-        ]
-    }
-    
-@app.delete("/api/v1/documents/{doc_id}")
-def delete_document(doc_id: str):
-    """문서 삭제"""
-    try:
-        success = doc_manager.delete_document(doc_id)
-        if success:
-            return {
-                "message": f"문서 {doc_id} 삭제 완료",
-                "total_count": doc_manager.get_document_count()
-            }
-        else:
-            raise HTTPException(status_code=404, detail=f"문서 {doc_id}를 찾을 수 없습니다")
-    except HTTPException:
-        raise
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+    )
+    asyncio.create_task(kafka_service.start())
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run(
-        app,
-        host="0.0.0.0",
-        port=8000,
-        log_level="info"
-    )
+    uvicorn.run(app, host="0.0.0.0", port=8000)
