@@ -10,8 +10,10 @@ class CommentBatcher:
         self.callback = callback
         self.scheduler = AsyncIOScheduler()
         self.scheduler.add_job(self._check_interval, 'interval', minutes=1)
-        self.scheduler.start()
         self.last_flush: Dict[str, datetime] = {}
+
+    def start(self):
+        self.scheduler.start()
 
     async def add_comment(self, poll_id: str, comment: str):
         if poll_id not in self.buffer:

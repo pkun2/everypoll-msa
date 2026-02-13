@@ -1,21 +1,20 @@
 import os
-import json
+import re
 import asyncio
-from typing import List, Dict, Any, Optional, Literal
+from typing import List
 from fastapi import FastAPI
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
 from langchain_core.messages import HumanMessage, SystemMessage
 from langgraph.graph import StateGraph, START, END
 from typing_extensions import TypedDict
-
+from contextlib import asynccontextmanager
+from langchain_core.output_parsers import JsonOutputParser
 from core.filter import TextCleaner
 from core.batcher import CommentBatcher
 from services.kafka_consumer import KafkaConsumerService
-
-app = FastAPI(title="EveryPoll RAG Agent API")
 
 # 환경 변수 설정
 EMBEDDING_API_URL = os.getenv("EMBEDDING_API_URL", "http://localhost:8000/v1")
@@ -58,7 +57,7 @@ class PolicyCheckState(TypedDict):
     is_violation: bool
     reason: str
 
-def retrieve_guidelines(state: PolicyCheckState):
+async def retrieve_guidelines(state: PolicyCheckState):
     """가이드라인 문서 검색"""
     # 실제로는 벡터 스토어에서 'guideline' 타입 문서를 검색해야 함
     # 여기서는 예시 문구를 반환
@@ -69,22 +68,48 @@ def retrieve_guidelines(state: PolicyCheckState):
         context = "기본 정책: 혐오 표현, 정치적 편향성, 분란 조장, 욕설이 포함된 투표는 금지됩니다."
     return {"guidelines": context}
 
+class PolicyResult(BaseModel):
+    is_violation: bool = Field(description="정책 위반 여부 (True/False)")
+    reason: str = Field(description="위반했다면 그 구체적인 이유, 아니면 'Pass'")
+
+parser = JsonOutputParser(pydantic_object=PolicyResult)
+
 async def analyze_compliance(state: PolicyCheckState):
     """LLM을 통한 정책 위반 여부 분석"""
+
+    format_instructions = parser.get_format_instructions()
+
     prompt = f"""
     [검토 기준]
     {state['guidelines']}
-    
     [투표 정보]
     제목: {state['title']}
     설명: {state['description']}
+    위 투표가 정책을 위반하는지 분석해.
     
-    위 투표가 검토 기준을 위반하는지 분석해 줘.
-    위반 가능성이 높다면 "VIOLATION"으로 시작하고 이유를 적어줘.
-    문제가 없다면 "PASS"라고 적어줘.
+    {format_instructions} 
     """
+
     response = await llm.ainvoke(prompt)
-    return {"analysis": response.content}
+    
+    try:
+        clean_content = re.sub(
+            r'<think>.*?</think>', 
+            '', 
+            response.content, 
+            flags=re.DOTALL
+        ).strip()
+        
+        parsed_result = parser.parse(clean_content)
+        print(f"Parsed Result: {parsed_result}")
+        return {
+            "analysis": parsed_result["reason"],
+            "is_violation": parsed_result["is_violation"]
+        }
+    except Exception as e:
+        print(f"Parsing Error: {e}")
+        # 실패시 안전장치 (Fail-safe)
+        return {"analysis": "Error parsing output", "is_violation": True}
 
 def determine_action(state: PolicyCheckState):
     """분석 결과에 따른 액션 결정"""
@@ -129,7 +154,11 @@ async def summarize_and_index_comments(poll_id: str, comments: List[str]):
         summary = response.content
         doc = Document(
             page_content=f"[댓글 요약] 투표 {poll_id}: {summary}",
-            metadata={"poll_id": poll_id, "type": "comment_summary", "timestamp": str(asyncio.get_event_loop().time())}
+            metadata={
+                "poll_id": poll_id, 
+                "type": "comment_summary", 
+                "timestamp": str(asyncio.get_event_loop().time())
+            }
         )
         vectorstore.add_documents([doc])
         print(f"✅ Indexed summary for poll {poll_id}")
@@ -140,6 +169,16 @@ batcher = CommentBatcher(callback=summarize_and_index_comments)
 
 
 # --- Kafka 핸들러 ---
+async def handle_poll_event_router(data: dict):
+    event_type = data.get("event") or data.get("eventType") or data.get("type") 
+    print(f"받은 이벤트: {event_type}")
+    
+    if event_type == "POLL_CREATED":
+        await handle_poll_created(data)
+    else:
+        print(f"알 수 없는 이벤트: {event_type}")
+
+
 async def handle_comment_created(data: dict):
     poll_id = data.get("pollId")
     content = data.get("content")
@@ -151,11 +190,11 @@ async def handle_comment_created(data: dict):
 
 async def handle_poll_created(data: dict):
     """투표 생성 이벤트 -> LangGraph 심층 검증 실행"""
-    poll_id = data.get("id")
+    poll_id = data.get("pollId") or data.get("id") # pollId 우선 사용, 없으면 id (호환성)
     title = data.get("title")
     description = data.get("description")
     
-    print(f"🕵️ Deep checking poll {poll_id}...")
+    print(f"Deep checking poll {poll_id}...")
     
     # LangGraph 실행
     initial_state = {
@@ -176,6 +215,42 @@ async def handle_poll_created(data: dict):
     else:
         print(f"✅ Poll {poll_id} passed deep check.")
 
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    print("[Startup] Kafka Consumer & Batcher 시작중...")
+    kafka_service = KafkaConsumerService(
+        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+        topics=["poll-events"],
+        handler_map={
+            "poll-events": handle_poll_created
+        }
+    )
+    
+    kafka_task = asyncio.create_task(kafka_service.start())
+    app.state.kafka_service = kafka_service
+    app.state.kafka_task = kafka_task
+    batcher.start()
+    print("[Startup] 모든 시스템 정상 가동 완료!")
+    
+    yield
+    
+    print("[Shutdown] 리소스 정리 중...")
+    
+    await kafka_service.stop() 
+    
+    kafka_task.cancel()
+    try:
+        await kafka_task
+    except asyncio.CancelledError:
+        pass
+    # Batcher 종료
+    batcher.stop()
+    print("[Shutdown] 리소스 정리끝!")
+
+app = FastAPI(
+    title="EveryPoll RAG Agent API",
+    lifespan=lifespan
+)
 
 # --- FastAPI 엔드포인트 ---
 class CheckRequest(BaseModel):
@@ -187,17 +262,9 @@ async def fast_verify(request: CheckRequest):
     is_bad = cleaner.has_slang(request.text)
     return {"is_allowed": not is_bad, "reason": "slang" if is_bad else None}
 
-@app.on_event("startup")
-async def startup_event():
-    kafka_service = KafkaConsumerService(
-        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
-        topics=["comment-created", "poll-created"],
-        handler_map={
-            "comment-created": handle_comment_created,
-            "poll-created": handle_poll_created
-        }
-    )
-    asyncio.create_task(kafka_service.start())
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
 
 if __name__ == "__main__":
     import uvicorn
