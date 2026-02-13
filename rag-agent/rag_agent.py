@@ -111,25 +111,14 @@ async def analyze_compliance(state: PolicyCheckState):
         # 실패시 안전장치 (Fail-safe)
         return {"analysis": "Error parsing output", "is_violation": True}
 
-def determine_action(state: PolicyCheckState):
-    """분석 결과에 따른 액션 결정"""
-    analysis = state['analysis'].upper()
-    is_violation = "VIOLATION" in analysis or "위반" in state['analysis']
-    return {
-        "is_violation": is_violation,
-        "reason": state['analysis'] if is_violation else "Pass"
-    }
-
 # 그래프 구성
 workflow = StateGraph(PolicyCheckState)
 workflow.add_node("retrieve_guidelines", retrieve_guidelines)
-workflow.add_node("analyze_compliance", analyze_compliance)
-workflow.add_node("determine_action", determine_action)
+workflow.add_node("analyze_compliance", analyze_compliance) 
 
 workflow.add_edge(START, "retrieve_guidelines")
 workflow.add_edge("retrieve_guidelines", "analyze_compliance")
-workflow.add_edge("analyze_compliance", "determine_action")
-workflow.add_edge("determine_action", END)
+workflow.add_edge("analyze_compliance", END) 
 
 policy_checker_app = workflow.compile()
 
