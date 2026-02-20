@@ -78,7 +78,7 @@ services:
     environment:
       - EMBEDDING_API_URL=http://bge-m3:8000/v1
       - LLM_API_URL=http://qwen3-8b-gptq-4bit:8000/v1
-      - KAFKA_BOOTSTRAP_SERVERS=${MAIN_PC_IP}:29092
+      - KAFKA_BOOTSTRAP_SERVERS=kafka-kraft:9092
     extra_hosts:
       - "host.docker.internal:${MAIN_PC_IP}"
     depends_on:
@@ -88,9 +88,13 @@ services:
         condition: service_healthy
     networks:
       - ai-net
+      - everypoll-net
     command: python rag_agent.py
 
 
 networks:
   ai-net:
     driver: bridge
+  everypoll-net:
+    external: true
+    name: everypoll-msa_everypoll-net

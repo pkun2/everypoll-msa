@@ -211,7 +211,7 @@ async def lifespan(app: FastAPI):
         bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
         topics=["poll-events"],
         handler_map={
-            "poll-events": handle_poll_created
+            "poll-events": handle_poll_event_router
         }
     )
     
