@@ -13,3 +13,4 @@ aiokafka
 apscheduler
 typing-extensions
 numpy
+aiohttp

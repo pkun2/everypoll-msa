@@ -21,6 +21,10 @@ public class PollResponse {
     private LocalDateTime endAt;
     private LocalDateTime createdAt;
     private String createdBy;
+    
+    @com.fasterxml.jackson.annotation.JsonProperty("isBlind")
+    private boolean isBlind;
+    
     private List<OptionResponse> options;
 
     public static PollResponse from(Poll poll) {
@@ -31,6 +35,7 @@ public class PollResponse {
                 .endAt(poll.getEndAt())
                 .createdAt(poll.getCreatedAt())
                 .createdBy(poll.getCreatedBy())
+                .isBlind(poll.isBlind())
                 .options(poll.getOptions().stream()
                         .map(OptionResponse::from)
                         .collect(Collectors.toList()))

@@ -37,6 +37,10 @@ public class Poll extends BaseTimeEntity {
     @CreatedBy
     private String createdBy;
 
+    @Column(nullable = false)
+    @Builder.Default
+    private boolean isBlind = false;
+
     @Builder.Default
     @OneToMany(mappedBy = "poll", cascade = CascadeType.ALL, orphanRemoval = true)
     private List<PollOption> options = new ArrayList<>();
@@ -54,5 +58,9 @@ public class Poll extends BaseTimeEntity {
 
     public void anonymizeAuthor() {
         this.createdBy = "deleted_user";
+    }
+
+    public void blind() {
+        this.isBlind = true;
     }
 }

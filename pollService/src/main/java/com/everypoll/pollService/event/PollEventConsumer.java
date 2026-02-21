@@ -7,6 +7,7 @@ import org.springframework.stereotype.Component;
 import com.everypoll.common.event.auth.UserDeletedEvent;
 import com.everypoll.common.event.vote.VoteCancelledEvent;
 import com.everypoll.common.event.vote.VoteCreatedEvent;
+import com.everypoll.common.event.poll.PollBlindedEvent;
 import com.everypoll.pollService.config.KafkaConfig;
 import com.everypoll.pollService.service.PollService;
 
@@ -79,6 +80,27 @@ public class PollEventConsumer {
                     voteCancelledEvent.getPollId(), voteCancelledEvent.getOptionId(), e.getMessage(), e);
                 
                 throw e;
+            }
+        }
+    }
+
+    @KafkaListener(
+        topics = KafkaConfig.POLL_EVENTS_TOPIC,
+        groupId = "poll-service-group",
+        containerFactory = "kafkaListenerContainerFactory"
+    )
+    public void handlePollEvent(ConsumerRecord<String, Object> record) {
+        Object event = record.value();
+        
+        if (event instanceof PollBlindedEvent pollBlindedEvent) {
+            log.info("투표 블라인드 처리 이벤트 수신 - pollId: {}, reason: {}", 
+                pollBlindedEvent.getPollId(), pollBlindedEvent.getReason());
+            
+            try {
+                pollService.blindPoll(pollBlindedEvent.getPollId());
+                log.info("투표 블라인드 처리 완료 - pollId: {}", pollBlindedEvent.getPollId());
+            } catch (Exception e) {
+                log.error("투표 블라인드 처리 에러 - pollId: {}", pollBlindedEvent.getPollId(), e);
             }
         }
     }

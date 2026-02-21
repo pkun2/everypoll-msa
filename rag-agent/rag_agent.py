@@ -1,5 +1,6 @@
 import os
 import re
+import json
 import asyncio
 from typing import List
 from fastapi import FastAPI
@@ -20,6 +21,7 @@ from services.kafka_consumer import KafkaConsumerService
 EMBEDDING_API_URL = os.getenv("EMBEDDING_API_URL", "http://localhost:8000/v1")
 LLM_API_URL = os.getenv("LLM_API_URL", "http://localhost:8001/v1")
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka-kraft:9092")
+POLL_SERVICE_URL = os.getenv("POLL_SERVICE_URL", "poll-service:8082")
 PERSIST_DIRECTORY = "./chroma_db"
 
 # 모델 초기화
@@ -200,7 +202,32 @@ async def handle_poll_created(data: dict):
     
     if result["is_violation"]:
         print(f"⚠️ Policy Violation detected in poll {poll_id}: {result['reason']}")
-        # TODO: pollService.blind_poll(poll_id) API Call
+        
+        # PollService로 블라인드 처리 이벤트(Kafka) 발행
+        try:
+            from aiokafka import AIOKafkaProducer
+            producer = AIOKafkaProducer(
+                bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+                value_serializer=lambda v: json.dumps(v).encode('utf-8')
+            )
+            await producer.start()
+            try:
+                event_data = {
+                    "@class": "com.everypoll.common.event.poll.PollBlindedEvent",
+                    "type": "pollBlinded",
+                    "pollId": int(poll_id),
+                    "reason": result["reason"]
+                }
+                await producer.send_and_wait(
+                    "poll-events", 
+                    value=event_data,
+                    headers=[("__TypeId__", b"pollBlinded")]
+                )
+                print(f"✅ Blinding event published for poll {poll_id}")
+            finally:
+                await producer.stop()
+        except Exception as e:
+            print(f"❌ Error publishing blinding event for poll {poll_id}: {e}")
     else:
         print(f"✅ Poll {poll_id} passed deep check.")
 

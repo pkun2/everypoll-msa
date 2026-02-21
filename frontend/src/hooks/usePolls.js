@@ -18,7 +18,8 @@ export function usePolls(page = 0) {
       // Check if response.data is directly the array (based on user provided example)
       // or if it has a content property (Spring Page).
       const pollsData = Array.isArray(response.data) ? response.data : response.data.content
-      setPolls(pollsData || [])
+      const visiblePolls = (pollsData || []).filter(poll => !poll.isBlind)
+      setPolls(visiblePolls)
 
       // If pagination info is present, use it. Otherwise default to 1 page.
       setTotalPages(response.data.totalPages || 1)
@@ -51,7 +52,12 @@ export function usePoll(pollId) {
         pollAPI.getById(pollId),
         voteAPI.getMyVote(pollId).catch(() => null)
       ])
-      setPoll(pollRes.data)
+      const pollData = pollRes.data
+      if (pollData.isBlind) {
+        throw new Error('이 투표는 정책 위반으로 인해 블라인드 처리되었습니다.')
+      }
+
+      setPoll(pollData)
       setMyVote(voteRes?.data || null)
     } catch (err) {
       setError(err.message)

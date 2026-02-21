@@ -15,4 +15,5 @@ public interface PollService {
     void handleUserDeleted(Long userId);
     void incrementVoteCount(Long pollId, Long optionId);
     void decrementVoteCount(Long pollId, Long optionId);
+    void blindPoll(Long pollId);
 }
