@@ -144,4 +144,12 @@ public class PollServiceImpl implements PollService {
         pollOptionRepository.decrementVoteCount(optionId);
         log.debug("투표 수 감소 - pollId: {}, optionId: {}", pollId, optionId);
     }
+
+    @Transactional
+    public void blindPoll(Long pollId) {
+        log.info("블라인드 처리 요청 - pollId: {}", pollId);
+        Poll poll = pollRepository.findById(pollId)
+                .orElseThrow(() -> new ResourceNotFoundException("Poll", "id", pollId));
+        poll.blind();
+    }
 }

@@ -73,13 +73,15 @@ public class KafkaConfig {
         config.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ErrorHandlingDeserializer.class);
         config.put(ErrorHandlingDeserializer.KEY_DESERIALIZER_CLASS, StringDeserializer.class);
         config.put(ErrorHandlingDeserializer.VALUE_DESERIALIZER_CLASS, JsonDeserializer.class);
-        
         config.put(JsonDeserializer.TRUSTED_PACKAGES, "com.everypoll.common.event.*");
         config.put(JsonDeserializer.TYPE_MAPPINGS,
                 "userCreated:com.everypoll.common.event.auth.UserCreatedEvent," +
                 "userDeleted:com.everypoll.common.event.auth.UserDeletedEvent," +
                 "voteCreated:com.everypoll.common.event.vote.VoteCreatedEvent," +
-                "voteCancelled:com.everypoll.common.event.vote.VoteCancelledEvent");
+                "voteCancelled:com.everypoll.common.event.vote.VoteCancelledEvent," +
+                "pollCreated:com.everypoll.common.event.poll.PollCreatedEvent," +
+                "pollDeleted:com.everypoll.common.event.poll.PollDeletedEvent," +
+                "pollBlinded:com.everypoll.common.event.poll.PollBlindedEvent");
         
         return new DefaultKafkaConsumerFactory<>(config);
     }

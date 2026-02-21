@@ -72,6 +72,10 @@ services:
     environment:
       - EMBEDDING_API_URL=http://bge-m3:8000/v1
       - LLM_API_URL=http://qwen3-8b-gptq-4bit:8000/v1
+      - KAFKA_BOOTSTRAP_SERVERS=kafka-kraft:9092
+      - POLL_SERVICE_URL=poll-service:8082
+    extra_hosts:
+      - "host.docker.internal:${MAIN_PC_IP}"
     depends_on:
       bge-m3:
         condition: service_healthy
