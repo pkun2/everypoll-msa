@@ -187,6 +187,10 @@ async def fast_verify(request: CheckRequest):
     is_bad = cleaner.has_slang(request.text)
     return {"is_allowed": not is_bad, "reason": "slang" if is_bad else None}
 
+@app.get("/health")
+async def health_check():
+    return {"status": "ok"}
+
 @app.on_event("startup")
 async def startup_event():
     kafka_service = KafkaConsumerService(
