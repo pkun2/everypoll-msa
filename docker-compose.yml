@@ -32,8 +32,8 @@ services:
       context: .
       dockerfile: authService/Dockerfile
     container_name: "auth-service"
-    ports:
-      - "0.0.0.0:8081:8081"
+    expose:
+      - "8081"
     depends_on:
       kafka-kraft:
         condition: service_healthy
@@ -51,8 +51,8 @@ services:
       context: .
       dockerfile: pollService/Dockerfile
     container_name: "poll-service"
-    ports:
-      - "0.0.0.0:8082:8082"
+    expose:
+      - "8082"
     depends_on:
       kafka-kraft:
         condition: service_healthy
@@ -68,8 +68,8 @@ services:
       context: .
       dockerfile: voteService/Dockerfile
     container_name: "vote-service"
-    ports:
-      - "0.0.0.0:8083:8083"
+    expose:
+      - "8083"
     depends_on:
       kafka-kraft:
         condition: service_healthy
@@ -129,8 +129,7 @@ services:
   vote-mysql:
     image: mysql:8.0
     container_name: vote-mysql
-    ports:
-      - "3308:3306"
+
     environment:
       MYSQL_ROOT_PASSWORD: dyddlsch2014
       TZ: Asia/Seoul
@@ -151,8 +150,7 @@ services:
   poll-mysql:
     image: mysql:8.0
     container_name: poll-mysql
-    ports:
-      - "3306:3306"
+
     environment:
       MYSQL_ROOT_PASSWORD: dyddlsch2014
       TZ: Asia/Seoul
@@ -173,8 +171,7 @@ services:
   auth-mysql:
     image: mysql:8.0
     container_name: auth-mysql
-    ports:
-      - "3307:3306"
+
     environment:
       MYSQL_ROOT_PASSWORD: dyddlsch2014
       TZ: Asia/Seoul
@@ -195,8 +192,7 @@ services:
   vote-redis:
     image: redis:alpine
     container_name: vote-redis
-    ports:
-      - "6380:6379"
+
     volumes:
       - vote_redis_data:/data
     command: redis-server --appendonly yes
@@ -210,8 +206,7 @@ services:
   token-redis:
     image: redis:alpine
     container_name: token-redis
-    ports:
-      - "6379:6379"
+
     volumes:
       - token_redis_data:/data
     command: redis-server --appendonly yes

@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   bge-m3:
     image: vllm/vllm-openai:latest
@@ -83,8 +81,12 @@ services:
         condition: service_healthy
     networks:
       - ai-net
+      - everypoll-net
     command: python rag_agent.py
 
 networks:
   ai-net:
     driver: bridge
+  everypoll-net:
+    external: true
+    name: everypoll-msa_everypoll-net
