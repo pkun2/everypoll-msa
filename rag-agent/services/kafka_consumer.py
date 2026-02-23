@@ -1,15 +1,16 @@
 from aiokafka import AIOKafkaConsumer
 import json
 import asyncio
+from typing import List, Dict, Callable, Any, Coroutine
 
 class KafkaConsumerService:
-    def __init__(self, bootstrap_servers: str, topics: list, handler_map: dict):
+    def __init__(self, bootstrap_servers: str, topics: List[str], handler_map: Dict[str, Callable[[Dict[str, Any]], Coroutine[Any, Any, None]]]) -> None:
         self.bootstrap_servers = bootstrap_servers
         self.topics = topics
         self.handler_map = handler_map # topic_name -> async handler function
-        self.consumer = None
+        self.consumer: Any = None
 
-    async def start(self):
+    async def start(self) -> None:
         self.consumer = AIOKafkaConsumer(
             *self.topics,
             bootstrap_servers=self.bootstrap_servers,
@@ -25,6 +26,6 @@ class KafkaConsumerService:
         finally:
             await self.consumer.stop()
 
-    async def stop(self):
+    async def stop(self) -> None:
         if self.consumer:
             await self.consumer.stop()

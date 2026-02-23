@@ -3,7 +3,7 @@ import json
 import asyncio
 from typing import List, Dict, Any, Optional, Literal
 from fastapi import FastAPI
-from pydantic import BaseModel
+from pydantic import BaseModel, ValidationError
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
@@ -14,6 +14,7 @@ from typing_extensions import TypedDict
 from core.filter import TextCleaner
 from core.batcher import CommentBatcher
 from services.kafka_consumer import KafkaConsumerService
+from schemas.events import PollCreatedEvent, CommentCreatedEvent
 
 app = FastAPI(title="EveryPoll RAG Agent API")
 
@@ -59,18 +60,16 @@ class PolicyCheckState(TypedDict):
     is_violation: bool
     reason: str
 
-def retrieve_guidelines(state: PolicyCheckState):
+async def retrieve_guidelines(state: PolicyCheckState) -> Dict[str, str]:
     """가이드라인 문서 검색"""
-    # 실제로는 벡터 스토어에서 'guideline' 타입 문서를 검색해야 함
-    # 여기서는 예시 문구를 반환
-    docs = vectorstore.similarity_search("policy guideline", k=1)
+    docs = await vectorstore.asimilarity_search("policy guideline", k=1)
     if docs:
         context = docs[0].page_content
     else:
         context = "기본 정책: 혐오 표현, 정치적 편향성, 분란 조장, 욕설이 포함된 투표는 금지됩니다."
     return {"guidelines": context}
 
-async def analyze_compliance(state: PolicyCheckState):
+async def analyze_compliance(state: PolicyCheckState) -> Dict[str, str]:
     """LLM을 통한 정책 위반 여부 분석"""
     prompt = f"""
     [검토 기준]
@@ -87,7 +86,7 @@ async def analyze_compliance(state: PolicyCheckState):
     response = await llm.ainvoke(prompt)
     return {"analysis": response.content}
 
-def determine_action(state: PolicyCheckState):
+def determine_action(state: PolicyCheckState) -> Dict[str, Any]:
     """분석 결과에 따른 액션 결정"""
     analysis = state['analysis'].upper()
     is_violation = "VIOLATION" in analysis or "위반" in state['analysis']
@@ -111,7 +110,7 @@ policy_checker_app = workflow.compile()
 
 
 # --- 비즈니스 로직: 댓글 요약 및 인덱싱 ---
-async def summarize_and_index_comments(poll_id: str, comments: List[str]):
+async def summarize_and_index_comments(poll_id: str, comments: List[str]) -> None:
     """배치된 댓글을 요약하여 벡터 DB에 저장"""
     try:
         combined_comments = "\n".join([f"- {c}" for c in comments])
@@ -132,7 +131,7 @@ async def summarize_and_index_comments(poll_id: str, comments: List[str]):
             page_content=f"[댓글 요약] 투표 {poll_id}: {summary}",
             metadata={"poll_id": poll_id, "type": "comment_summary", "timestamp": str(asyncio.get_event_loop().time())}
         )
-        vectorstore.add_documents([doc])
+        await vectorstore.aadd_documents([doc])
         print(f"✅ Indexed summary for poll {poll_id}")
     except Exception as e:
         print(f"❌ Error in summarization: {e}")
@@ -141,20 +140,31 @@ batcher = CommentBatcher(callback=summarize_and_index_comments)
 
 
 # --- Kafka 핸들러 ---
-async def handle_comment_created(data: dict):
-    poll_id = data.get("pollId")
-    content = data.get("content")
-    if not poll_id or not content: return
+async def handle_comment_created(data: dict) -> None:
+    try:
+        event = CommentCreatedEvent.model_validate(data)
+    except ValidationError as e:
+        print(f"❌ Validation Error in comment event: {e}")
+        return
+
+    poll_id = event.poll_id
+    content = event.content
 
     if cleaner.is_meaningless(content): return
     cleaned_content = cleaner.clean(content)
-    await batcher.add_comment(str(poll_id), cleaned_content)
+    await batcher.add_comment(poll_id, cleaned_content)
 
-async def handle_poll_created(data: dict):
+async def handle_poll_created(data: dict) -> None:
     """투표 생성 이벤트 -> LangGraph 심층 검증 실행"""
-    poll_id = data.get("id")
-    title = data.get("title")
-    description = data.get("description")
+    try:
+        event = PollCreatedEvent.model_validate(data)
+    except ValidationError as e:
+        print(f"❌ Validation Error in poll event: {e}")
+        return
+
+    poll_id = event.id
+    title = event.title
+    description = event.description or ""
     
     print(f"🕵️ Deep checking poll {poll_id}...")
     
@@ -208,17 +218,17 @@ class CheckRequest(BaseModel):
     text: str
 
 @app.post("/api/v1/verify/fast")
-async def fast_verify(request: CheckRequest):
+async def fast_verify(request: CheckRequest) -> Dict[str, Any]:
     """Fast Sync Check (동기)"""
     is_bad = cleaner.has_slang(request.text)
     return {"is_allowed": not is_bad, "reason": "slang" if is_bad else None}
 
 @app.get("/health")
-async def health_check():
+async def health_check() -> Dict[str, str]:
     return {"status": "ok"}
 
 @app.on_event("startup")
-async def startup_event():
+async def startup_event() -> None:
     kafka_service = KafkaConsumerService(
         bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
         topics=["comment-created", "poll-created"],

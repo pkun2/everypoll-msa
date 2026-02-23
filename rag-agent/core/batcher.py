@@ -1,10 +1,10 @@
 import asyncio
-from typing import List, Dict, Callable
+from typing import List, Dict, Callable, Coroutine, Any
 from datetime import datetime, timedelta
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 class CommentBatcher:
-    def __init__(self, callback: Callable[[str, List[str]], asyncio.Future], max_size: int = 50, interval_minutes: int = 10):
+    def __init__(self, callback: Callable[[str, List[str]], Coroutine[Any, Any, None]], max_size: int = 50, interval_minutes: int = 10) -> None:
         self.buffer: Dict[str, List[str]] = {} # poll_id -> [comments]
         self.max_size = max_size
         self.callback = callback
@@ -13,7 +13,7 @@ class CommentBatcher:
         self.scheduler.start()
         self.last_flush: Dict[str, datetime] = {}
 
-    async def add_comment(self, poll_id: str, comment: str):
+    async def add_comment(self, poll_id: str, comment: str) -> None:
         if poll_id not in self.buffer:
             self.buffer[poll_id] = []
             self.last_flush[poll_id] = datetime.now()
@@ -23,7 +23,7 @@ class CommentBatcher:
         if len(self.buffer[poll_id]) >= self.max_size:
             await self._flush(poll_id)
 
-    async def _check_interval(self):
+    async def _check_interval(self) -> None:
         now = datetime.now()
         ids_to_flush = [
             pid for pid, last in self.last_flush.items() 
@@ -32,7 +32,7 @@ class CommentBatcher:
         for pid in ids_to_flush:
             await self._flush(pid)
 
-    async def _flush(self, poll_id: str):
+    async def _flush(self, poll_id: str) -> None:
         comments = self.buffer.pop(poll_id, [])
         self.last_flush[poll_id] = datetime.now()
         if comments:
@@ -40,5 +40,5 @@ class CommentBatcher:
             # LLM 요약 호출 (비동기)
             asyncio.create_task(self.callback(poll_id, comments))
 
-    def stop(self):
+    def stop(self) -> None:
         self.scheduler.shutdown()
