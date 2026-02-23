@@ -1,7 +1,10 @@
 import asyncio
+import logging
 from typing import List, Dict, Callable
 from datetime import datetime, timedelta
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
+
+logger = logging.getLogger(__name__)
 
 class CommentBatcher:
     def __init__(self, callback: Callable[[str, List[str]], asyncio.Future], max_size: int = 50, interval_minutes: int = 10):
@@ -38,7 +41,7 @@ class CommentBatcher:
         comments = self.buffer.pop(poll_id, [])
         self.last_flush[poll_id] = datetime.now()
         if comments:
-            print(f"📦 Flashing {len(comments)} comments for poll {poll_id}")
+            logger.info(f"Flashing {len(comments)} comments for poll {poll_id}")
             # LLM 요약 호출 (비동기)
             asyncio.create_task(self.callback(poll_id, comments))
 

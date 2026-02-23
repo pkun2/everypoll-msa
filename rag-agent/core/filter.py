@@ -9,6 +9,9 @@ class TextCleaner:
         
     def is_meaningless(self, text: str) -> bool:
         """무의미한 짧은 댓글이나 단순 반복 필터링"""
+        if len(text) > 5000: # DoS 방지: 너무 긴 텍스트는 처리하지 않음
+            return True
+
         text = text.strip()
         if len(text) <= 2:
             return True

@@ -1,6 +1,9 @@
 from aiokafka import AIOKafkaConsumer
 import json
 import asyncio
+import logging
+
+logger = logging.getLogger(__name__)
 
 class KafkaConsumerService:
     def __init__(self, bootstrap_servers: str, topics: list, handler_map: dict):
@@ -31,9 +34,9 @@ class KafkaConsumerService:
                 except asyncio.TimeoutError:
                     continue
                 except Exception as e:
-                    print(f"Error processing message: {e}")
+                    logger.error(f"Error processing message: {e}")
         finally:
-            print("Consumer Loop Logic Finished")
+            logger.info("Consumer Loop Logic Finished")
             if self.consumer:
                 await self.consumer.stop()
     async def stop(self):
