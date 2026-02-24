@@ -2,7 +2,8 @@ import os
 import re
 import json
 import asyncio
-from typing import List
+import logging
+from typing import List, Any, Dict
 from fastapi import FastAPI
 from pydantic import BaseModel, Field
 from langchain_openai import OpenAIEmbeddings, ChatOpenAI
@@ -18,6 +19,12 @@ from core.batcher import CommentBatcher
 from services.kafka_consumer import KafkaConsumerService
 
 # 환경 변수 설정
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(name)s: %(message)s"
+)
+logger = logging.getLogger("rag_agent")
+
 EMBEDDING_API_URL = os.getenv("EMBEDDING_API_URL", "http://localhost:8000/v1")
 LLM_API_URL = os.getenv("LLM_API_URL", "http://localhost:8001/v1")
 KAFKA_BOOTSTRAP_SERVERS = os.getenv("KAFKA_BOOTSTRAP_SERVERS", "kafka-kraft:9092")
@@ -101,13 +108,13 @@ async def analyze_compliance(state: PolicyCheckState):
         ).strip()
         
         parsed_result = parser.parse(clean_content)
-        print(f"Parsed Result: {parsed_result}")
+        logger.info(f"Parsed Result: {parsed_result}")
         return {
             "analysis": parsed_result["reason"],
             "is_violation": parsed_result["is_violation"]
         }
     except Exception as e:
-        print(f"Parsing Error: {e}")
+        logger.error(f"Parsing Error: {e}", exc_info=True)
         # 실패시 안전장치 (Fail-safe)
         return {"analysis": "Error parsing output", "is_violation": True}
 
@@ -150,9 +157,9 @@ async def summarize_and_index_comments(poll_id: str, comments: List[str]) -> Non
             }
         )
         await vectorstore.aadd_documents([doc])
-        print(f"✅ Indexed summary for poll {poll_id}")
+        logger.info(f"✅ Indexed summary for poll {poll_id}")
     except Exception as e:
-        print(f"❌ Error in summarization: {e}")
+        logger.error(f"❌ Error in summarization: {e}", exc_info=True)
 
 batcher = CommentBatcher(callback=summarize_and_index_comments)
 
@@ -160,12 +167,12 @@ batcher = CommentBatcher(callback=summarize_and_index_comments)
 # --- Kafka 핸들러 ---
 async def handle_poll_event_router(data: dict):
     event_type = data.get("event") or data.get("eventType") or data.get("type") 
-    print(f"받은 이벤트: {event_type}")
+    logger.info(f"받은 이벤트: {event_type}")
     
     if event_type == "POLL_CREATED":
         await handle_poll_created(data)
     else:
-        print(f"알 수 없는 이벤트: {event_type}")
+        logger.warning(f"알 수 없는 이벤트: {event_type}")
 
 
 async def handle_comment_created(data: dict):
@@ -183,7 +190,7 @@ async def handle_poll_created(data: dict) -> None:
     title = data.get("title")
     description = data.get("description")
     
-    print(f"Deep checking poll {poll_id}...")
+    logger.info(f"Deep checking poll {poll_id}...")
     
     # LangGraph 실행
     initial_state = {
@@ -199,7 +206,9 @@ async def handle_poll_created(data: dict) -> None:
     result = await policy_checker_app.ainvoke(initial_state)
     
     if result["is_violation"]:
-        print(f"⚠️ Policy Violation detected in poll {poll_id}: {result['reason']}")
+        logger.warning(
+            f"⚠️ Policy Violation detected in poll {poll_id}: {result['reason']}"
+        )
         
         # PollService로 블라인드 처리 이벤트(Kafka) 발행
         try:
@@ -221,17 +230,20 @@ async def handle_poll_created(data: dict) -> None:
                     value=event_data,
                     headers=[("__TypeId__", b"pollBlinded")]
                 )
-                print(f"✅ Blinding event published for poll {poll_id}")
+                logger.info(f"✅ Blinding event published for poll {poll_id}")
             finally:
                 await producer.stop()
         except Exception as e:
-            print(f"❌ Error publishing blinding event for poll {poll_id}: {e}")
+            logger.error(
+                f"❌ Error publishing blinding event for poll {poll_id}: {e}", 
+                exc_info=True
+            )
     else:
-        print(f"✅ Poll {poll_id} passed deep check.")
+        logger.info(f"✅ Poll {poll_id} passed deep check.")
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("[Startup] Kafka Consumer & Batcher 시작중...")
+    logger.info("[Startup] Kafka Consumer & Batcher 시작중...")
     kafka_service = KafkaConsumerService(
         bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
         topics=["poll-events"],
@@ -244,11 +256,11 @@ async def lifespan(app: FastAPI):
     app.state.kafka_service = kafka_service
     app.state.kafka_task = kafka_task
     batcher.start()
-    print("[Startup] 모든 시스템 정상 가동 완료!")
+    logger.info("[Startup] 모든 시스템 정상 가동 완료!")
     
     yield
     
-    print("[Shutdown] 리소스 정리 중...")
+    logger.info("[Shutdown] 리소스 정리 중...")
     
     await kafka_service.stop() 
     
@@ -259,7 +271,7 @@ async def lifespan(app: FastAPI):
         pass
     # Batcher 종료
     batcher.stop()
-    print("[Shutdown] 리소스 정리끝!")
+    logger.info("[Shutdown] 리소스 정리끝!")
 
 app = FastAPI(
     title="EveryPoll RAG Agent API",
