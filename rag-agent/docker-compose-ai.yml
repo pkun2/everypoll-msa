@@ -83,6 +83,19 @@ services:
       - ai-net
       - everypoll-net
     command: python rag_agent.py
+  gpu-exporter:
+    image: utkuozdemir/nvidia_gpu_exporter:1.3.1
+    container_name: gpu-exporter
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: 1
+              capabilities: [gpu, utility]
+    ports:
+      - "9835:9835"
+    restart: always
 
 networks:
   ai-net:
