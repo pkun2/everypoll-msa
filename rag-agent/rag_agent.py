@@ -92,7 +92,11 @@ async def analyze_compliance(state: PolicyCheckState):
     [투표 정보]
     제목: {state['title']}
     설명: {state['description']}
-    위 투표가 정책을 위반하는지 분석해.
+    너는 커뮤니티 관리자야. 다음 문장이 
+    '단순한 감정 표출/분노'인지, 
+    아니면 특정 집단을 향한 '혐오/모욕'인지 분류해. 
+    '정치적'인 의견이면 혐오표현으로 분류해
+    단순한 짜증이면 정상(Normal)으로 통과시켜.
     
     {format_instructions} 
     """
