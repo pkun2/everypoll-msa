@@ -2,6 +2,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { usePoll } from '../hooks/usePolls'
 import { useAuth } from '../context/AuthContext'
 import PollOption from '../components/PollOption'
+import CommentSection from '../components/CommentSection'
 
 function PollDetail() {
   const { pollId } = useParams()
@@ -73,7 +74,7 @@ function PollDetail() {
   const isAuthor = user && poll.createdBy === user.userId
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl mx-auto pb-12">
       <div className="bg-white rounded-xl shadow-sm border p-8">
         {/* 헤더 */}
         <div className="mb-6">
@@ -134,6 +135,9 @@ function PollDetail() {
             투표 게시글 삭제
           </button>
         )}
+
+        {/* 댓글 영역 */}
+        <CommentSection pollId={pollId} />
       </div>
     </div>
   )

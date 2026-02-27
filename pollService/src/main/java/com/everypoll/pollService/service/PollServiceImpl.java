@@ -108,13 +108,11 @@ public class PollServiceImpl implements PollService {
         Poll poll = pollRepository.findById(pollId)
                 .orElseThrow(() -> new ResourceNotFoundException("Poll", "id", pollId));
 
-        // 권한 검사: 투표를 생성한 사용자만 삭제 가능
         if (!poll.getCreatedBy().equals(username)) {
-            // throw new AccessDeniedException("이 투표를 삭제할 권한이 없습니다.");
-            throw new RuntimeException("이 투표를 삭제할 권한이 없습니다."); // 임시 예외
+            throw new RuntimeException("이 투표를 삭제할 권한이 없습니다.");
         }
 
-        pollRepository.delete(poll);
+        poll.delete();
 
         eventPublisher.publishPollDeleted(pollId, username);
     }
