@@ -17,6 +17,7 @@ from langchain_core.output_parsers import JsonOutputParser
 from core.filter import TextCleaner
 from core.batcher import CommentBatcher
 from services.kafka_consumer import KafkaConsumerService
+from aiokafka import AIOKafkaProducer
 
 # 환경 변수 설정
 logging.basicConfig(
@@ -175,6 +176,8 @@ async def handle_poll_event_router(data: dict):
     
     if event_type == "POLL_CREATED":
         await handle_poll_created(data)
+    elif event_type == "COMMENT_CREATED":
+        await handle_comment_created(data)
     else:
         logger.warning(f"알 수 없는 이벤트: {event_type}")
 
@@ -216,27 +219,19 @@ async def handle_poll_created(data: dict) -> None:
         
         # PollService로 블라인드 처리 이벤트(Kafka) 발행
         try:
-            from aiokafka import AIOKafkaProducer
-            producer = AIOKafkaProducer(
-                bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
-                value_serializer=lambda v: json.dumps(v).encode('utf-8')
+            event_data = {
+                "@class": "com.everypoll.common.event.poll.PollBlindedEvent",
+                "type": "pollBlinded",
+                "pollId": int(poll_id),
+                "reason": result["reason"]
+            }
+
+            await app.state.kafka_producer.send_and_wait(
+                "poll-events", 
+                value=event_data,
+                headers=[("__TypeId__", b"pollBlinded")]
             )
-            await producer.start()
-            try:
-                event_data = {
-                    "@class": "com.everypoll.common.event.poll.PollBlindedEvent",
-                    "type": "pollBlinded",
-                    "pollId": int(poll_id),
-                    "reason": result["reason"]
-                }
-                await producer.send_and_wait(
-                    "poll-events", 
-                    value=event_data,
-                    headers=[("__TypeId__", b"pollBlinded")]
-                )
-                logger.info(f"✅ Blinding event published for poll {poll_id}")
-            finally:
-                await producer.stop()
+            logger.info(f"✅ Blinding event published for poll {poll_id}")
         except Exception as e:
             logger.error(
                 f"❌ Error publishing blinding event for poll {poll_id}: {e}", 
@@ -248,31 +243,36 @@ async def handle_poll_created(data: dict) -> None:
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     logger.info("[Startup] Kafka Consumer & Batcher 시작중...")
+
+    producer = AIOKafkaProducer(
+        bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
+        value_serializer=lambda v: json.dumps(v).encode('utf-8')
+    )
+    await producer.start()
+    app.state.kafka_producer = producer
+    
     kafka_service = KafkaConsumerService(
         bootstrap_servers=KAFKA_BOOTSTRAP_SERVERS,
         topics=["poll-events"],
-        handler_map={
-            "poll-events": handle_poll_event_router
-        }
+        handler_map={"poll-events": handle_poll_event_router}
     )
-    
     kafka_task = asyncio.create_task(kafka_service.start())
+    
     app.state.kafka_service = kafka_service
     app.state.kafka_task = kafka_task
     batcher.start()
+
     logger.info("[Startup] 모든 시스템 정상 가동 완료!")
     
     yield
     
     logger.info("[Shutdown] 리소스 정리 중...")
     
-    await kafka_service.stop() 
+    await producer.stop()
+    await kafka_service.stop()
     
     kafka_task.cancel()
-    try:
-        await kafka_task
-    except asyncio.CancelledError:
-        pass
+    
     # Batcher 종료
     batcher.stop()
     logger.info("[Shutdown] 리소스 정리끝!")

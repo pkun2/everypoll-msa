@@ -1,7 +1,5 @@
 package com.everypoll.pollService.service;
 
-import com.everypoll.common.event.poll.CommentCreatedEvent;
-import com.everypoll.pollService.config.KafkaConfig;
 import com.everypoll.pollService.dto.CommentCreateRequest;
 import com.everypoll.pollService.dto.CommentResponse;
 import com.everypoll.pollService.exception.ResourceNotFoundException;
@@ -14,11 +12,9 @@ import lombok.extern.slf4j.Slf4j;
 
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.domain.Slice;
-import org.springframework.kafka.core.KafkaTemplate;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
-import java.time.LocalDateTime;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -28,7 +24,7 @@ public class CommentService {
 
     private final CommentRepository commentRepository;
     private final PollRepository pollRepository;
-    private final KafkaTemplate<String, Object> kafkaTemplate;
+    private final com.everypoll.pollService.event.PollEventPublisher pollEventPublisher;
     private final com.everypoll.pollService.client.AuthServiceClient authServiceClient;
 
     @Transactional
@@ -44,7 +40,7 @@ public class CommentService {
 
         Comment savedComment = commentRepository.save(comment);
 
-        publishCommentCreatedEvent(savedComment);
+        pollEventPublisher.publishCommentCreated(savedComment);
 
         return CommentResponse.of(savedComment, "User" + userId, userId);
     }
@@ -95,25 +91,5 @@ public class CommentService {
         }
 
         comment.delete();
-    }
-
-    private void publishCommentCreatedEvent(Comment comment) {
-        CommentCreatedEvent event = CommentCreatedEvent.builder()
-                .type("commentCreated")
-                .commentId(comment.getId())
-                .pollId(comment.getPoll().getId())
-                .userId(comment.getUserId())
-                .content(comment.getContent())
-                .createdAt(LocalDateTime.now())
-                .build();
-
-        kafkaTemplate.send(KafkaConfig.POLL_EVENTS_TOPIC, String.valueOf(comment.getPoll().getId()), event)
-                .whenComplete((result, ex) -> {
-                    if (ex == null) {
-                        log.info("댓글 이벤트 발행 성공! - commentId: {}", comment.getId());
-                    } else {
-                        log.error("댓글 이벤트 발행 실패! - commentId: {}, error: {}", comment.getId(), ex.getMessage());
-                    }
-                });
     }
 }

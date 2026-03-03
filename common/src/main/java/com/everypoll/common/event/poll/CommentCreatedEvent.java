@@ -16,10 +16,10 @@ import lombok.NoArgsConstructor;
 @AllArgsConstructor
 @JsonTypeInfo(use = JsonTypeInfo.Id.CLASS, include = JsonTypeInfo.As.PROPERTY, property = "@class")
 public class CommentCreatedEvent {
-    private String type;         // 이벤트 타입 (예: "commentCreated")
-    private Long commentId;      // 생성된 댓글 ID
-    private Long pollId;         // 해당 투표 ID
-    private Long userId;         // 작성자 ID (추후 필터링 등 필요시 활용 가능)
-    private String content;      // 댓글 내용 (AI 분석 대상)
+    private String type; // 이벤트 타입
+    private Long commentId; // 생성된 댓글 ID
+    private Long pollId; // 해당 투표 ID
+    private Long userId; // 작성자 ID
+    private String content; // 댓글 내용
     private java.time.LocalDateTime createdAt;
 }
