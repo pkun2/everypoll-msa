@@ -9,7 +9,6 @@ function PollDetail() {
   const navigate = useNavigate()
   const { user } = useAuth()
   const { poll, myVote, loading, error, vote, cancelVote, deletePoll } = usePoll(pollId)
-
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -93,6 +92,19 @@ function PollDetail() {
           <h1 className="text-2xl font-bold text-gray-900">{poll.title}</h1>
           {poll.description && (
             <p className="text-gray-600 mt-2">{poll.description}</p>
+          )}
+
+          {/* AI 댓글 요약 렌더링 영역 */}
+          {poll.commentSummary && (
+            <div className="mt-6 p-5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl shadow-sm">
+              <div className="flex items-center gap-2 mb-3 text-indigo-700 font-bold">
+                <span className="text-lg">✨</span>
+                <span>AI 댓글 요약</span>
+              </div>
+              <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+                {poll.commentSummary}
+              </p>
+            </div>
           )}
         </div>
 

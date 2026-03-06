@@ -140,19 +140,27 @@ async def summarize_and_index_comments(poll_id: str, comments: List[str]) -> Non
     """배치된 댓글을 요약하여 벡터 DB에 저장"""
     try:
         combined_comments = "\n".join([f"- {c}" for c in comments])
-        prompt = f"""
-        다음은 투표(ID: {poll_id})에 달린 댓글들입니다. 
-        이 내용들을 종합하여 핵심 의견과 분위기를 2~3문장으로 요약해 주세요.
+        prompt = f""" 
+        너는 'EveryPoll'의 힙한 커뮤니티 관리자야. 
+        딱딱한 설명은 집어치우고, 친구한테 말하듯 투표 분위기를 요약해줘.
+        - 반말은 하지 말고 친절하되, '드립'이나 '이모지'를 섞어서 생동감 있게 써.
         
-        댓글 목록:
+        다음은 투표(ID: {poll_id})의 댓글들이야. 한눈에 들어오게 요약해줘!
+
+        [댓글 목록]:
         {combined_comments}
+
+        [댓글 분석 미션]
+        1. 한 줄 요약: 전체 상황을 힙하게 한 줄로 정리 (이모지 필수!)
+        2. 치열한 공방: 댓글에서 대립하는 두 의견의 핵심 키워드를 'A vs B' 형태로 추출
+        3. 관전 포인트: 이 투표에서 가장 웃기거나 주목해야 할 댓글 포인트 1가지
         """
         response = await llm.ainvoke([
             SystemMessage(content="너는 투표 결과를 분석하는 전문 어시스턴트야."),
             HumanMessage(content=prompt)
         ])
-        
-        summary = response.content
+        raw_summary = response.content
+        summary = re.sub(r'<think>.*?</think>', '', raw_summary, flags=re.DOTALL).strip()
         doc = Document(
             page_content=f"[댓글 요약] 투표 {poll_id}: {summary}",
             metadata={
@@ -187,9 +195,10 @@ async def handle_comment_created(data: dict):
     content = data.get("content")
     if not poll_id or not content: return
 
+    poll_id_str = str(poll_id)
     if cleaner.is_meaningless(content): return
     cleaned_content = cleaner.clean(content)
-    await batcher.add_comment(poll_id, cleaned_content)
+    await batcher.add_comment(poll_id_str, cleaned_content)
 
 async def handle_poll_created(data: dict) -> None:
     """투표 생성 이벤트 -> LangGraph 심층 검증 실행"""
@@ -285,6 +294,32 @@ app = FastAPI(
 # --- FastAPI 엔드포인트 ---
 class CheckRequest(BaseModel):
     text: str
+
+@app.get("/api/v1/polls/{poll_id}/summary")
+async def get_poll_summary(poll_id: str) -> Dict[str, Any]:
+    """특정 투표의 댓글 요약 데이터 조회"""
+    try:
+        # metadata 필터링
+        docs = await vectorstore.asimilarity_search(
+            query="[댓글 요약]", 
+            k=1,
+            filter={"$and": [{"poll_id": {"$eq": str(poll_id)}}, {"type": {"$eq": "comment_summary"}}]}
+        )
+        
+        if docs:
+            content = docs[0].page_content
+            prefix = f"[댓글 요약] 투표 {poll_id}: "
+            if content.startswith(prefix):
+                summary = content[len(prefix):].strip()
+            else:
+                summary = content
+            return {"poll_id": poll_id, "summary": summary}
+        else:
+            return {"poll_id": poll_id, "summary": None}
+            
+    except Exception as e:
+        logger.error(f"Error fetching summary for poll {poll_id}: {e}", exc_info=True)
+        return {"poll_id": poll_id, "summary": None, "error": str(e)}
 
 @app.post("/api/v1/verify/fast")
 async def fast_verify(request: CheckRequest) -> Dict[str, Any]:

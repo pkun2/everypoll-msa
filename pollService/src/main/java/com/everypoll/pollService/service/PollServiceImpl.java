@@ -12,6 +12,9 @@ import com.everypoll.pollService.repository.PollRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
+import com.everypoll.pollService.client.RagAgentClient;
+import java.util.Map;
+
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -27,6 +30,7 @@ public class PollServiceImpl implements PollService {
     private final PollRepository pollRepository;
     private final PollEventPublisher eventPublisher;
     private final OptionRepository pollOptionRepository;
+    private final RagAgentClient ragAgentClient;
 
     // CREATE
     @Transactional
@@ -68,9 +72,21 @@ public class PollServiceImpl implements PollService {
     // READ (Single)
     @Transactional(readOnly = true)
     public PollResponse getPollById(Long pollId) {
-        return pollRepository.findById(pollId)
-                .map(PollResponse::from)
+        Poll poll = pollRepository.findById(pollId)
                 .orElseThrow(() -> new ResourceNotFoundException("Poll", "id", pollId));
+
+        PollResponse response = PollResponse.from(poll);
+        try {
+            Map<String, Object> summaryData = ragAgentClient.getPollSummary(pollId);
+            if (summaryData != null && summaryData.get("summary") != null) {
+                response.setCommentSummary((String) summaryData.get("summary"));
+            }
+        } catch (Exception e) {
+            log.warn("댓글 요약 가져오기 실패 poll {}: {}", pollId, e.getMessage());
+            response.setCommentSummary("현재 AI 요약을 불러올 수 없습니다.");
+        }
+
+        return response;
     }
 
     // UPDATE

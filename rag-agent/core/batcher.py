@@ -9,7 +9,7 @@ class CommentBatcher:
         callback: Callable[[str, List[str]],
         Coroutine[Any, Any, None]],
         max_size: int = 3,
-        interval_minutes: int = 1
+        interval_minutes: int = 10
     ) -> None:
         self.buffer: Dict[str, List[str]] = {}
         self.last_flush: Dict[str, datetime] = {}
