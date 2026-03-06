@@ -46,6 +46,9 @@ frontend/node_modules
 # production
 /build
 
+# chromadb
+chroma_db/
+
 # misc
 .DS_Store
 .env.local

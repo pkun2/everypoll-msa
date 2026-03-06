@@ -4,43 +4,63 @@ from datetime import datetime, timedelta
 from apscheduler.schedulers.asyncio import AsyncIOScheduler
 
 class CommentBatcher:
-    def __init__(self, callback: Callable[[str, List[str]], Coroutine[Any, Any, None]], max_size: int = 50, interval_minutes: int = 10) -> None:
-        self.buffer: Dict[str, List[str]] = {} # poll_id -> [comments]
+    def __init__(
+        self, 
+        callback: Callable[[str, List[str]],
+        Coroutine[Any, Any, None]],
+        max_size: int = 3,
+        interval_minutes: int = 1
+    ) -> None:
+        self.buffer: Dict[str, List[str]] = {}
+        self.last_flush: Dict[str, datetime] = {}
         self.max_size = max_size
+        self.interval_minutes = interval_minutes
         self.callback = callback
         self.scheduler = AsyncIOScheduler()
-        self.scheduler.add_job(self._check_interval, 'interval', minutes=1)
-        self.last_flush: Dict[str, datetime] = {}
+        self.lock = asyncio.Lock() 
+        self.semaphore = asyncio.Semaphore(3) 
 
     def start(self):
+        self.scheduler.add_job(self._check_interval, 'interval', minutes=1)
         self.scheduler.start()
 
     async def add_comment(self, poll_id: str, comment: str):
-        if poll_id not in self.buffer:
-            self.buffer[poll_id] = []
-            self.last_flush[poll_id] = datetime.now()
-        
-        self.buffer[poll_id].append(comment)
-        
-        if len(self.buffer[poll_id]) >= self.max_size:
-            await self._flush(poll_id)
+        async with self.lock:
+            if poll_id not in self.buffer:
+                self.buffer[poll_id] = []
+                self.last_flush[poll_id] = datetime.now()
+            
+            self.buffer[poll_id].append(comment)
+            
+            if len(self.buffer[poll_id]) >= self.max_size:
+                await self._flush(poll_id)
 
     async def _check_interval(self) -> None:
-        now = datetime.now()
-        ids_to_flush = [
-            pid for pid, last in self.last_flush.items() 
-            if now - last >= timedelta(minutes=10) and self.buffer.get(pid)
-        ]
-        for pid in ids_to_flush:
-            await self._flush(pid)
+        async with self.lock:
+            now = datetime.now()
+            ids_to_flush = [ 
+                pid for pid, last in self.last_flush.items() 
+                if now - last >= timedelta(minutes=self.interval_minutes) and self.buffer.get(pid)
+            ] # 10분 넘으면 flush
+            for pid in ids_to_flush:
+                await self._flush(pid)
 
     async def _flush(self, poll_id: str) -> None:
         comments = self.buffer.pop(poll_id, [])
-        self.last_flush[poll_id] = datetime.now()
+        # 오래된 기록 삭제 (메모리 관리)
+        if poll_id in self.last_flush:
+            del self.last_flush[poll_id] 
+
         if comments:
-            print(f"📦 Flashing {len(comments)} comments for poll {poll_id}")
-            # LLM 요약 호출 (비동기)
-            asyncio.create_task(self.callback(poll_id, comments))
+            print(f"📦 [Flush] Poll: {poll_id}, Count: {len(comments)}")
+            asyncio.create_task(self._safe_callback(poll_id, comments))
+
+    async def _safe_callback(self, poll_id: str, comments: List[str]):
+        async with self.semaphore:
+            try:
+                await self.callback(poll_id, comments)
+            except Exception as e:
+                print(f"❌ 요약 실패 (Poll {poll_id}): {e}")
 
     def stop(self) -> None:
         self.scheduler.shutdown()
