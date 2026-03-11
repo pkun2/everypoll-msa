@@ -53,7 +53,7 @@ services:
       - LD_LIBRARY_PATH=/usr/lib/wsl/lib # WSL CUDA 라이브러리 경로
       - NVIDIA_VISIBLE_DEVICES=all
     command: >
-      --model pkun2/qwen3_4bit_mixed_kr_2_gptq --gpu-memory-utilization 0.7 --max-model-len 8192 --enable-auto-tool-choice --tool-call-parser hermes
+      --model pkun2/qwen3_4bit_mixed_meme_kr_gptq --gpu-memory-utilization 0.7 --max-model-len 8192 --enable-auto-tool-choice --tool-call-parser hermes
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost:8000/health" ]
       interval: 10s
