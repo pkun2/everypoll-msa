@@ -1,0 +1,26 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: gatewayService
+  cloud:
+    gateway:
+      routes:
+        - id: auth-service
+          uri: http://auth-service:8081
+          predicates:
+            - Path=/api/auth/**
+        - id: poll-service
+          uri: http://poll-service:8082
+          predicates:
+            - Path=/api/polls/**
+        - id: vote-service
+          uri: http://vote-service:8083
+          predicates:
+            - Path=/api/votes/**
+
+jwt:
+  secret: ${JWT_SECRET_KEY}
+  access-expiration-ms: 300000
+  refresh-expiration-ms: 604800000

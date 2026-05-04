@@ -23,10 +23,24 @@ services:
     networks:
       - everypoll-net
     depends_on:
+      - gateway-service
+    restart: always
+  gateway-service:
+    build:
+      context: .
+      dockerfile: gatewayService/Dockerfile
+    container_name: "gateway-service"
+    ports:
+      - "8080:8080"
+    depends_on:
       - auth-service
       - poll-service
       - vote-service
-    restart: always
+    restart: on-failure
+    networks:
+      - everypoll-net
+    env_file:
+      - ./gatewayService/.env
   auth-service:
     build:
       context: .
