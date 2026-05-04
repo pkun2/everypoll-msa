@@ -10,6 +10,7 @@ import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.Setter;
 
 @Getter
 @Builder
@@ -21,10 +22,13 @@ public class PollResponse {
     private LocalDateTime endAt;
     private LocalDateTime createdAt;
     private String createdBy;
-    
+
     @com.fasterxml.jackson.annotation.JsonProperty("isBlind")
     private boolean isBlind;
-    
+
+    @Setter
+    private String commentSummary;
+
     private List<OptionResponse> options;
 
     public static PollResponse from(Poll poll) {

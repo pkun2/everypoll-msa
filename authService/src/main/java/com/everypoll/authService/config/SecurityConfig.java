@@ -27,7 +27,8 @@ public class SecurityConfig {
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
                         // "/api/auth/**" 경로의 요청은 모두 허용 (로그인, 회원가입)
-                        .requestMatchers("/api/auth/login", "/api/auth/signup", "/api/auth/refresh").permitAll()
+                        .requestMatchers("/api/auth/login", "/api/auth/signup", "/api/auth/refresh")
+                        .permitAll()
                         .requestMatchers("/api/auth/**").authenticated()
                         // 그 외의 모든 요청은 인증된 사용자만 접근 가능
                         .anyRequest().authenticated())

@@ -2,13 +2,13 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { usePoll } from '../hooks/usePolls'
 import { useAuth } from '../context/AuthContext'
 import PollOption from '../components/PollOption'
+import CommentSection from '../components/CommentSection'
 
 function PollDetail() {
   const { pollId } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
   const { poll, myVote, loading, error, vote, cancelVote, deletePoll } = usePoll(pollId)
-
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -73,7 +73,7 @@ function PollDetail() {
   const isAuthor = user && poll.createdBy === user.userId
 
   return (
-    <div className="max-w-2xl mx-auto">
+    <div className="max-w-2xl mx-auto pb-12">
       <div className="bg-white rounded-xl shadow-sm border p-8">
         {/* 헤더 */}
         <div className="mb-6">
@@ -92,6 +92,19 @@ function PollDetail() {
           <h1 className="text-2xl font-bold text-gray-900">{poll.title}</h1>
           {poll.description && (
             <p className="text-gray-600 mt-2">{poll.description}</p>
+          )}
+
+          {/* AI 댓글 요약 렌더링 영역 */}
+          {poll.commentSummary && (
+            <div className="mt-6 p-5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl shadow-sm">
+              <div className="flex items-center gap-2 mb-3 text-indigo-700 font-bold">
+                <span className="text-lg">✨</span>
+                <span>AI 댓글 요약</span>
+              </div>
+              <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+                {poll.commentSummary}
+              </p>
+            </div>
           )}
         </div>
 
@@ -134,6 +147,9 @@ function PollDetail() {
             투표 게시글 삭제
           </button>
         )}
+
+        {/* 댓글 영역 */}
+        <CommentSection pollId={pollId} />
       </div>
     </div>
   )

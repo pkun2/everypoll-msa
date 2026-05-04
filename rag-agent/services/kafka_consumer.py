@@ -2,6 +2,7 @@ from aiokafka import AIOKafkaConsumer
 import json
 import asyncio
 from typing import List, Dict, Callable, Any, Coroutine
+from core.metrics import KAFKA_ERRORS_TOTAL
 
 class KafkaConsumerService:
     def __init__(self, bootstrap_servers: str, topics: List[str], handler_map: Dict[str, Callable[[Dict[str, Any]], Coroutine[Any, Any, None]]]) -> None:
@@ -32,6 +33,7 @@ class KafkaConsumerService:
                 except asyncio.TimeoutError:
                     continue
                 except Exception as e:
+                    KAFKA_ERRORS_TOTAL.inc()
                     print(f"Error processing message: {e}")
         finally:
             print("Consumer Loop Logic Finished")

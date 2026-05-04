@@ -32,15 +32,15 @@ public class KafkaConfig {
     private String bootstrapServers;
 
     public static final String POLL_EVENTS_TOPIC = "poll-events";
-    public static final String USER_EVENTS_TOPIC = "user-events"; 
+    public static final String USER_EVENTS_TOPIC = "user-events";
     public static final String VOTE_EVENTS_TOPIC = "vote-events";
 
     @Bean
     public NewTopic pollEventsTopic() {
         return TopicBuilder.name(POLL_EVENTS_TOPIC)
-            .partitions(3)
-            .replicas(1)
-            .build();
+                .partitions(3)
+                .replicas(1)
+                .build();
     }
 
     @Bean
@@ -51,9 +51,10 @@ public class KafkaConfig {
         config.put(ProducerConfig.VALUE_SERIALIZER_CLASS_CONFIG, JsonSerializer.class);
         config.put(JsonSerializer.TYPE_MAPPINGS,
                 "pollCreated:com.everypoll.common.event.poll.PollCreatedEvent," +
-                "pollDeleted:com.everypoll.common.event.poll.PollDeletedEvent," +
-                "voteCreated:com.everypoll.common.event.vote.VoteCreatedEvent," +
-                "voteCancelled:com.everypoll.common.event.vote.VoteCancelledEvent");
+                        "pollDeleted:com.everypoll.common.event.poll.PollDeletedEvent," +
+                        "voteCreated:com.everypoll.common.event.vote.VoteCreatedEvent," +
+                        "voteCancelled:com.everypoll.common.event.vote.VoteCancelledEvent," +
+                        "commentCreated:com.everypoll.common.event.poll.CommentCreatedEvent");
         return new DefaultKafkaProducerFactory<>(config);
     }
 
@@ -68,7 +69,7 @@ public class KafkaConfig {
         config.put(ConsumerConfig.BOOTSTRAP_SERVERS_CONFIG, bootstrapServers);
         config.put(ConsumerConfig.GROUP_ID_CONFIG, "poll-service-group");
         config.put(ConsumerConfig.AUTO_OFFSET_RESET_CONFIG, "earliest");
-        
+
         config.put(ConsumerConfig.KEY_DESERIALIZER_CLASS_CONFIG, ErrorHandlingDeserializer.class);
         config.put(ConsumerConfig.VALUE_DESERIALIZER_CLASS_CONFIG, ErrorHandlingDeserializer.class);
         config.put(ErrorHandlingDeserializer.KEY_DESERIALIZER_CLASS, StringDeserializer.class);
@@ -76,25 +77,25 @@ public class KafkaConfig {
         config.put(JsonDeserializer.TRUSTED_PACKAGES, "com.everypoll.common.event.*");
         config.put(JsonDeserializer.TYPE_MAPPINGS,
                 "userCreated:com.everypoll.common.event.auth.UserCreatedEvent," +
-                "userDeleted:com.everypoll.common.event.auth.UserDeletedEvent," +
-                "voteCreated:com.everypoll.common.event.vote.VoteCreatedEvent," +
-                "voteCancelled:com.everypoll.common.event.vote.VoteCancelledEvent," +
-                "pollCreated:com.everypoll.common.event.poll.PollCreatedEvent," +
-                "pollDeleted:com.everypoll.common.event.poll.PollDeletedEvent," +
-                "pollBlinded:com.everypoll.common.event.poll.PollBlindedEvent");
-        
+                        "userDeleted:com.everypoll.common.event.auth.UserDeletedEvent," +
+                        "voteCreated:com.everypoll.common.event.vote.VoteCreatedEvent," +
+                        "voteCancelled:com.everypoll.common.event.vote.VoteCancelledEvent," +
+                        "pollCreated:com.everypoll.common.event.poll.PollCreatedEvent," +
+                        "pollDeleted:com.everypoll.common.event.poll.PollDeletedEvent," +
+                        "pollBlinded:com.everypoll.common.event.poll.PollBlindedEvent," +
+                        "commentCreated:com.everypoll.common.event.poll.CommentCreatedEvent");
+
         return new DefaultKafkaConsumerFactory<>(config);
     }
 
     @Bean
     public ConcurrentKafkaListenerContainerFactory<String, Object> kafkaListenerContainerFactory() {
-        ConcurrentKafkaListenerContainerFactory<String, Object> factory =
-                new ConcurrentKafkaListenerContainerFactory<>();
+        ConcurrentKafkaListenerContainerFactory<String, Object> factory = new ConcurrentKafkaListenerContainerFactory<>();
         factory.setConsumerFactory(consumerFactory());
 
         factory.setCommonErrorHandler(new DefaultErrorHandler((record, exception) -> {
-        log.error("Kafka 처리 실패! topic={}, partition={}, value={}", 
-            record.topic(), record.partition(), record.value(), exception);
+            log.error("Kafka 처리 실패! topic={}, partition={}, value={}",
+                    record.topic(), record.partition(), record.value(), exception);
         }));
         return factory;
     }

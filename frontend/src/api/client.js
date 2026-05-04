@@ -129,6 +129,16 @@ export const voteAPI = {
     client.get(`/api/votes/polls/${pollId}/me`)
 }
 
+// Comment API
+export const commentAPI = {
+  getComments: (pollId, page = 0, size = 10) =>
+    client.get(`/api/polls/${pollId}/comments?page=${page}&size=${size}`),
+  createComment: (pollId, content) =>
+    client.post(`/api/polls/${pollId}/comments`, { content }),
+  deleteComment: (pollId, commentId) =>
+    client.delete(`/api/polls/${pollId}/comments/${commentId}`)
+}
+
 // RAG API
 export const ragAPI = {
   chat: (data) => client.post('/api/v1/chat', data),
