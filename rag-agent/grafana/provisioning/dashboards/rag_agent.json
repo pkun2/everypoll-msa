@@ -1,0 +1,330 @@
+{
+  "uid": "rag-agent-overview",
+  "title": "RAG Agent Overview",
+  "tags": ["rag", "qwen3", "langgraph"],
+  "timezone": "browser",
+  "schemaVersion": 39,
+  "refresh": "15s",
+  "time": { "from": "now-1h", "to": "now" },
+  "panels": [
+    {
+      "id": 1,
+      "title": "LangGraph 노드 P95 지연 (초)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 0, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "histogram_quantile(0.95, sum(rate(langgraph_node_duration_seconds_bucket[5m])) by (le, node))",
+          "legendFormat": "{{node}} P95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s", "color": { "mode": "palette-classic" } }
+      }
+    },
+    {
+      "id": 2,
+      "title": "정책 위반율 (%)",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 0, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "rate(policy_check_total{result=\"violation\"}[5m]) / rate(policy_check_total[5m]) * 100",
+          "legendFormat": "위반율"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 30 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 3,
+      "title": "정책 검사 결과 (건/s)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(rate(policy_check_total[5m])) by (result)",
+          "legendFormat": "{{result}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "color": { "mode": "palette-classic" } }
+      }
+    },
+    {
+      "id": 4,
+      "title": "댓글 요약 P95 지연 (초)",
+      "type": "stat",
+      "gridPos": { "x": 0, "y": 8, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "histogram_quantile(0.95, sum(rate(summarization_duration_seconds_bucket[5m])) by (le))",
+          "legendFormat": "요약 P95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 10 },
+              { "color": "red", "value": 30 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 5,
+      "title": "댓글 요약 성공/실패 (건/s)",
+      "type": "timeseries",
+      "gridPos": { "x": 6, "y": 8, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(rate(summarization_total[5m])) by (status)",
+          "legendFormat": "{{status}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "color": { "mode": "palette-classic" } }
+      }
+    },
+    {
+      "id": 6,
+      "title": "현재 버퍼 댓글 수",
+      "type": "gauge",
+      "gridPos": { "x": 18, "y": 8, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "batch_buffer_current_size",
+          "legendFormat": "버퍼 크기"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 15 },
+              { "color": "red", "value": 40 }
+            ]
+          },
+          "min": 0,
+          "max": 50
+        }
+      }
+    },
+    {
+      "id": 7,
+      "title": "배치 플러시 (트리거별, 건/s)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 16, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(rate(batch_flush_total[5m])) by (trigger)",
+          "legendFormat": "{{trigger}} 트리거"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "color": { "mode": "palette-classic" } }
+      }
+    },
+    {
+      "id": 8,
+      "title": "배치 플러시 크기 분포 (P50 / P95)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 16, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "histogram_quantile(0.5, sum(rate(batch_flush_size_bucket[5m])) by (le))",
+          "legendFormat": "P50"
+        },
+        {
+          "datasource": "Prometheus",
+          "expr": "histogram_quantile(0.95, sum(rate(batch_flush_size_bucket[5m])) by (le))",
+          "legendFormat": "P95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "short", "color": { "mode": "palette-classic" } }
+      }
+    },
+    {
+      "id": 9,
+      "title": "Kafka 이벤트 처리량 (건/s)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 24, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(rate(kafka_events_total[5m])) by (event_type)",
+          "legendFormat": "{{event_type}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "color": { "mode": "palette-classic" } }
+      }
+    },
+    {
+      "id": 10,
+      "title": "Kafka 에러율 (건/s)",
+      "type": "stat",
+      "gridPos": { "x": 12, "y": 24, "w": 6, "h": 4 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "rate(kafka_errors_total[5m])",
+          "legendFormat": "에러율"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "red", "value": 0.01 }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "id": 11,
+      "title": "Vector DB 작업 P95 지연 (초)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 32, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "histogram_quantile(0.95, sum(rate(vectordb_query_duration_seconds_bucket[5m])) by (le, operation))",
+          "legendFormat": "{{operation}} P95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s", "color": { "mode": "palette-classic" } }
+      }
+    },
+    {
+      "id": 12,
+      "title": "HTTP 요청 P95 지연 (초)",
+      "type": "timeseries",
+      "gridPos": { "x": 12, "y": 32, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "histogram_quantile(0.95, sum(rate(http_request_duration_seconds_bucket[5m])) by (le, endpoint))",
+          "legendFormat": "{{endpoint}} P95"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "s", "color": { "mode": "palette-classic" } }
+      }
+    },
+    {
+      "id": 13,
+      "title": "HTTP 요청 수 (건/s)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 40, "w": 12, "h": 8 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "sum(rate(http_requests_total[5m])) by (endpoint, status_code)",
+          "legendFormat": "{{endpoint}} {{status_code}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "reqps", "color": { "mode": "palette-classic" } }
+      }
+    },
+    {
+      "id": 14,
+      "title": "GPU 사용률 (%)",
+      "type": "timeseries",
+      "gridPos": { "x": 0, "y": 48, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "nvidia_smi_utilization_gpu_ratio * 100",
+          "legendFormat": "GPU {{uuid}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "min": 0,
+          "max": 100,
+          "color": { "mode": "palette-classic" }
+        }
+      }
+    },
+    {
+      "id": 15,
+      "title": "GPU 메모리 사용량 (bytes)",
+      "type": "timeseries",
+      "gridPos": { "x": 8, "y": 48, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "nvidia_smi_memory_used_bytes",
+          "legendFormat": "GPU {{uuid}} Used"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": { "unit": "bytes", "color": { "mode": "palette-classic" } }
+      }
+    },
+    {
+      "id": 16,
+      "title": "GPU 온도 (°C)",
+      "type": "gauge",
+      "gridPos": { "x": 16, "y": 48, "w": 8, "h": 8 },
+      "targets": [
+        {
+          "datasource": "Prometheus",
+          "expr": "nvidia_smi_temperature_gpu",
+          "legendFormat": "GPU {{uuid}}"
+        }
+      ],
+      "fieldConfig": {
+        "defaults": {
+          "unit": "celsius",
+          "min": 0,
+          "max": 100,
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "green", "value": null },
+              { "color": "yellow", "value": 70 },
+              { "color": "red", "value": 85 }
+            ]
+          }
+        }
+      }
+    }
+  ]
+}

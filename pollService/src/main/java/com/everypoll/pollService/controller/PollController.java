@@ -73,4 +73,11 @@ public class PollController {
 
         return ResponseEntity.noContent().build(); // 204 No Content
     }
+
+    @PatchMapping("/{pollId}/blind")
+    public ResponseEntity<Void> blindPoll(@PathVariable Long pollId) {
+        logger.info("투표 서버-내부 블라인드 처리 요청 id: {}", pollId);
+        pollService.blindPoll(pollId);
+        return ResponseEntity.noContent().build();
+    }
 }

@@ -8,7 +8,7 @@ import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
-import com.everypoll.common.config.JwtUtil;
+import com.everypoll.common.security.JwtValidator;
 
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
@@ -19,7 +19,7 @@ import lombok.RequiredArgsConstructor;
 @Component
 @RequiredArgsConstructor
 public class JwtAuthenticationFilter extends OncePerRequestFilter {
-    private final JwtUtil jwtUtil;
+    private final JwtValidator jwtValidator;
 
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
@@ -29,8 +29,8 @@ public class JwtAuthenticationFilter extends OncePerRequestFilter {
         String token = resolveToken(request);
 
         // 토큰 유효성 확인
-        if (token != null && jwtUtil.validateToken(token)) {
-            Authentication authentication = jwtUtil.getAuthentication(token);
+        if (token != null && jwtValidator.validateToken(token)) {
+            Authentication authentication = jwtValidator.getAuthentication(token);
             
             // 인증 정보 저장
             SecurityContextHolder.getContext().setAuthentication(authentication);

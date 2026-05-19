@@ -10,25 +10,38 @@ import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
+import lombok.Setter;
 
 @Getter
-@Builder 
+@Builder
 @AllArgsConstructor(access = AccessLevel.PRIVATE) // 빌더를 통해서만 생성하도록 강제
 public class PollResponse {
     private Long id;
-    private String question;
+    private String title;
+    private String description;
+    private LocalDateTime endAt;
     private LocalDateTime createdAt;
     private String createdBy;
+
+    @com.fasterxml.jackson.annotation.JsonProperty("isBlind")
+    private boolean isBlind;
+
+    @Setter
+    private String commentSummary;
+
     private List<OptionResponse> options;
 
     public static PollResponse from(Poll poll) {
         return PollResponse.builder()
                 .id(poll.getId())
-                .question(poll.getQuestion())
+                .title(poll.getTitle())
+                .description(poll.getDescription())
+                .endAt(poll.getEndAt())
                 .createdAt(poll.getCreatedAt())
                 .createdBy(poll.getCreatedBy())
+                .isBlind(poll.isBlind())
                 .options(poll.getOptions().stream()
-                        .map(OptionResponse::from)  
+                        .map(OptionResponse::from)
                         .collect(Collectors.toList()))
                 .build();
     }

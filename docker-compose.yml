@@ -9,20 +9,48 @@ services:
       - "50000:50000"
     user: "0:1"
     volumes:
-      - jenkins_home:/var/jenkins_home  
-      - /var/run/docker.sock:/var/run/docker.sock  
+      - jenkins_home:/var/jenkins_home
+      - /var/run/docker.sock:/var/run/docker.sock
     networks:
       - everypoll-net
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+    container_name: frontend
+    ports:
+      - "3000:3000"
+    networks:
+      - everypoll-net
+    depends_on:
+      - gateway-service
+    restart: always
+  gateway-service:
+    build:
+      context: .
+      dockerfile: gatewayService/Dockerfile
+    container_name: "gateway-service"
+    ports:
+      - "8080:8080"
+    depends_on:
+      - auth-service
+      - poll-service
+      - vote-service
+    restart: on-failure
+    networks:
+      - everypoll-net
+    env_file:
+      - ./gatewayService/.env
   auth-service:
-    build:     
+    build:
       context: .
       dockerfile: authService/Dockerfile
     container_name: "auth-service"
-    ports:
-      - "0.0.0.0:8081:8081"
+    expose:
+      - "8081"
     depends_on:
       kafka-kraft:
-        condition: service_healthy 
+        condition: service_healthy
       auth-mysql:
         condition: service_healthy
       token-redis:
@@ -37,11 +65,11 @@ services:
       context: .
       dockerfile: pollService/Dockerfile
     container_name: "poll-service"
-    ports:
-      - "0.0.0.0:8082:8082"
+    expose:
+      - "8082"
     depends_on:
       kafka-kraft:
-        condition: service_healthy 
+        condition: service_healthy
       poll-mysql:
         condition: service_healthy
     restart: on-failure
@@ -49,13 +77,32 @@ services:
       - everypoll-net
     env_file:
       - ./pollService/.env
-  kafka-kraft: 
+  vote-service:
+    build:
+      context: .
+      dockerfile: voteService/Dockerfile
+    container_name: "vote-service"
+    expose:
+      - "8083"
+    depends_on:
+      kafka-kraft:
+        condition: service_healthy
+      vote-mysql:
+        condition: service_healthy
+      vote-redis:
+        condition: service_healthy
+    restart: on-failure
+    networks:
+      - everypoll-net
+    env_file:
+      - ./voteService/.env
+  kafka-kraft:
     # image: confluentinc/cp-kafka:8.1.0.arm64 # 라즈베리파이용
     image: apache/kafka:4.1.1 # wsl용 
     container_name: kafka-kraft
     ports:
-      # - "29092:29092" # 호스트 접근
-      - "9092:9092" # 컨테이너간 통신
+      - "29092:29092" # 외부 PC(AI 서버) 접근용
+      - "9092:9092" # 내부 컨테이너간 통신
     environment:
       # 라즈베리파이 confluentinc/cp-kafka 용 설정
       # KAFKA_NODE_ID: 1
@@ -72,10 +119,12 @@ services:
       # CLUSTER_ID: 'MkU3OEVBNTcwNTJENDM2Qk'
       KAFKA_NODE_ID: 1
       KAFKA_PROCESS_ROLES: broker,controller
-      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093
-      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-kraft:9092
+      # EXTERNAL 리스너 추가 (29092 포트)
+      KAFKA_LISTENERS: PLAINTEXT://0.0.0.0:9092,CONTROLLER://0.0.0.0:9093,EXTERNAL://0.0.0.0:29092
+      # ADVERTISED_LISTENERS에 호스트 IP(EXTERNAL) 추가 필요. 실행 시 MAIN_PC_IP를 변경해야 함.
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka-kraft:9092,EXTERNAL://host.docker.internal:29092
       KAFKA_CONTROLLER_LISTENER_NAMES: CONTROLLER
-      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT,EXTERNAL:PLAINTEXT
       KAFKA_CONTROLLER_QUORUM_VOTERS: 1@kafka-kraft:9093
       KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
       KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
@@ -84,18 +133,38 @@ services:
       KAFKA_NUM_PARTITIONS: 3
     healthcheck:
       # test: ["CMD-SHELL", "cat < /dev/null > /dev/tcp/localhost/9092"]
-      test: ["CMD-SHELL", "cat < /dev/null > /dev/tcp/localhost/9092"]
+      test: [ "CMD-SHELL", "nc -z localhost 9092 || exit 1" ]
       interval: 15s
       timeout: 10s
       retries: 10
       start_period: 30s
     networks:
       - everypoll-net
+  vote-mysql:
+    image: mysql:8.0
+    container_name: vote-mysql
+
+    environment:
+      MYSQL_ROOT_PASSWORD: dyddlsch2014
+      TZ: Asia/Seoul
+    volumes:
+      - vote_mysql_data:/var/lib/mysql
+      - ./vote-init-scripts:/docker-entrypoint-initdb.d
+    command:
+      - --default-authentication-plugin=mysql_native_password
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+    healthcheck:
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
+      interval: 15s
+      timeout: 30s
+      retries: 10
+    networks:
+      - everypoll-net
   poll-mysql:
     image: mysql:8.0
     container_name: poll-mysql
-    ports:
-      - "3306:3306"
+
     environment:
       MYSQL_ROOT_PASSWORD: dyddlsch2014
       TZ: Asia/Seoul
@@ -107,7 +176,7 @@ services:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
     healthcheck:
-      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
       interval: 15s
       timeout: 30s
       retries: 10
@@ -116,8 +185,7 @@ services:
   auth-mysql:
     image: mysql:8.0
     container_name: auth-mysql
-    ports:
-      - "3307:3306"
+
     environment:
       MYSQL_ROOT_PASSWORD: dyddlsch2014
       TZ: Asia/Seoul
@@ -129,119 +197,47 @@ services:
       - --character-set-server=utf8mb4
       - --collation-server=utf8mb4_unicode_ci
     healthcheck:
-      test: ["CMD", "mysqladmin" ,"ping", "-h", "localhost"]
+      test: [ "CMD", "mysqladmin", "ping", "-h", "localhost" ]
       interval: 15s
       timeout: 30s
       retries: 10
     networks:
       - everypoll-net
-  token-redis:
+  vote-redis:
     image: redis:alpine
-    container_name: token-redis
-    ports: 
-      - "6379:6379"
+    container_name: vote-redis
+
     volumes:
-      - token_redis_data:/data
+      - vote_redis_data:/data
     command: redis-server --appendonly yes
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
       retries: 5
     networks:
       - everypoll-net
-  bge-m3:
-    image: vllm/vllm-openai:latest
-    container_name: bge-m3
-    runtime: nvidia
-    environment:
-      - NVIDIA_VISIBLE_DEVICES=0
-      - LD_LIBRARY_PATH=/usr/lib/wsl/lib
-    ports:
-      - "8000:8000"
+  token-redis:
+    image: redis:alpine
+    container_name: token-redis
+
     volumes:
-      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
-      - /usr/lib/wsl/lib:/usr/lib/wsl/lib:ro
-    ipc: host
-    shm_size: '2gb'
-    command: >
-      --model BAAI/bge-m3
-      --dtype auto
-      --gpu-memory-utilization 0.12
-      --max-model-len 8192
-      --trust-remote-code
+      - token_redis_data:/data
+    command: redis-server --appendonly yes
     healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
+      test: [ "CMD", "redis-cli", "ping" ]
       interval: 10s
       timeout: 5s
-      retries: 30
-      start_period: 60s
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: 1
-              capabilities: [gpu]
+      retries: 5
     networks:
       - everypoll-net
-  qwen3-8b-gptq-4bit:
-    image: vllm/vllm-openai:latest
-    container_name: qwen3-8b-gptq-4bit
-    depends_on:
-      bge-m3:
-        condition: service_healthy
-    deploy:
-      resources:
-        reservations:
-          devices:
-            - driver: nvidia
-              count: all
-              capabilities: [gpu]
-    ports:
-      - "8001:8000"
-    volumes:
-      - ${HOME}/.cache/huggingface:/root/.cache/huggingface
-      - /usr/lib/wsl/lib:/usr/lib/wsl/lib:ro  # WSL CUDA 라이브러리
-    environment:
-      - VLLM_ALLOW_RUNTIME_LORA_UPDATING=1
-      - LD_LIBRARY_PATH=/usr/lib/wsl/lib  # WSL CUDA 라이브러리 경로
-      - NVIDIA_VISIBLE_DEVICES=all
-    command: >
-      --model pkun2/qwen3_4bit_mixed_kr_2_gptq
-      --gpu-memory-utilization 0.7
-      --max-model-len 8192
-      --enable-auto-tool-choice
-      --tool-call-parser hermes
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8000/health"]
-      interval: 10s
-      timeout: 5s
-      retries: 30
-      start_period: 60s  
-    networks:
-      - everypoll-net
-  rag-agent:
-    build: ./rag-agent
-    container_name: rag-agent
-    ports:
-      - "8002:8000"
-    environment:
-      - EMBEDDING_API_URL=http://bge-m3:8000/v1
-      - LLM_API_URL=http://qwen3-8b-gptq-4bit:8000/v1
-    depends_on:
-      bge-m3:
-        condition: service_healthy
-      qwen3-8b-gptq-4bit: 
-        condition: service_healthy
-    networks:
-      - everypoll-net
-    command: python rag_agent.py
 networks:
   everypoll-net:
     driver: bridge
 volumes:
   poll_mysql_data:
   auth_mysql_data:
+  vote_mysql_data:
+  vote_redis_data: {}
   token_redis_data: {}
   jenkins_home:

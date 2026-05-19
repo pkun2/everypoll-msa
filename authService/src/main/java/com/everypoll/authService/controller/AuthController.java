@@ -36,16 +36,16 @@ public class AuthController {
         LoginResponse loginResponse = authService.login(request);
 
         ResponseCookie cookie = ResponseCookie.from("refreshToken", loginResponse.getRefreshToken())
-            .maxAge(refreshExpirationMs / 1000)
-            .path("/")
-            .secure(true)
-            .sameSite("None")
-            .httpOnly(true)
-            .build();
+                .maxAge(refreshExpirationMs / 1000)
+                .path("/")
+                .secure(true)
+                .sameSite("None")
+                .httpOnly(true)
+                .build();
 
         return ResponseEntity.ok()
-            .header(HttpHeaders.SET_COOKIE, cookie.toString())
-            .body(loginResponse);
+                .header(HttpHeaders.SET_COOKIE, cookie.toString())
+                .body(loginResponse);
     }
 
     @PostMapping("/signup")
@@ -58,7 +58,7 @@ public class AuthController {
 
     @PostMapping("/logout")
     public ResponseEntity<?> logout(@AuthenticationPrincipal UserDetailsImpl userDetails) {
-        if(userDetails == null) {
+        if (userDetails == null) {
             return ResponseEntity.badRequest().body(new MessageResponse("사용자를 찾을 수 없습니다."));
         }
 
@@ -80,10 +80,15 @@ public class AuthController {
                 .sameSite("None")
                 .httpOnly(true)
                 .build();
-        
+
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE, cookie.toString())
                 .body(response);
 
+    }
+
+    @PostMapping("/users/names")
+    public ResponseEntity<java.util.Map<Long, String>> getUsersNames(@RequestBody java.util.Set<Long> userIds) {
+        return ResponseEntity.ok(authService.getUsersNames(userIds));
     }
 }

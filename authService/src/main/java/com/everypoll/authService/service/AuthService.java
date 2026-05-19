@@ -12,18 +12,20 @@ import org.springframework.stereotype.Service;
 import com.everypoll.authService.dto.LoginRequest;
 import com.everypoll.authService.dto.LoginResponse;
 import com.everypoll.authService.dto.SignUpRequest;
+import com.everypoll.authService.event.UserEventPublisher;
 import com.everypoll.authService.model.User;
 import com.everypoll.authService.repository.UserRepository;
 import com.everypoll.authService.security.UserDetailsImpl;
 import com.everypoll.common.config.JwtUtil;
-import com.everypoll.common.dto.CreatedUserEvent;
 
-import jakarta.transaction.Transactional;
+import org.springframework.transaction.annotation.Transactional;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 
 @Service
 @RequiredArgsConstructor
-@Transactional
+@Slf4j
+@Transactional(readOnly = true)
 public class AuthService {
 
     private final JwtUtil jwtUtil;
@@ -31,8 +33,9 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
-    private final KafkaProducerService kafkaProducerService;
+    private final UserEventPublisher eventPublisher;
 
+    @Transactional
     public LoginResponse login(LoginRequest request) {
         Authentication authentication = authenticationManager.authenticate(
                 new UsernamePasswordAuthenticationToken(request.getUsername(), request.getPassword()));
@@ -41,37 +44,31 @@ public class AuthService {
 
         String userId = userDetails.getId().toString();
         List<String> roles = userDetails.getAuthorities().stream()
-                                        .map(grantedAuthority -> grantedAuthority.getAuthority())
-                                        .toList();
+                .map(grantedAuthority -> grantedAuthority.getAuthority())
+                .toList();
         String accessToken = jwtUtil.generateAccessToken(userId, roles);
         String refreshToken = jwtUtil.generateRefreshToken(userId);
 
         refreshTokenService.saveToken(userId, refreshToken);
 
-        CreatedUserEvent event = CreatedUserEvent.builder()
-            .userId(userId)
-            .username(userDetails.getUsername())    
-            .build();
-
-        kafkaProducerService.sendUserCreationEvent(event);
-
         return LoginResponse.builder()
-            .accessToken(accessToken)
-            .refreshToken(refreshToken)
-            .username(userDetails.getUsername())
-            .userId(userId)
-            .roles(roles)
-            .build();
+                .accessToken(accessToken)
+                .refreshToken(refreshToken)
+                .username(userDetails.getUsername())
+                .userId(userId)
+                .roles(roles)
+                .build();
     }
 
+    @Transactional
     public LoginResponse refreshAccessToken(String refreshToken) {
-        if(!jwtUtil.validateToken(refreshToken)) {
+        if (!jwtUtil.validateToken(refreshToken)) {
             throw new IllegalArgumentException("유효하지 않은 토큰입니다.");
         }
 
-        // 토큰 타입이 refresh인지 확인 
-        String tokenType = jwtUtil.getTokenType(refreshToken);        
-        if(!tokenType.equals("refresh")) {
+        // 토큰 타입이 refresh인지 확인
+        String tokenType = jwtUtil.getTokenType(refreshToken);
+        if (!tokenType.equals("refresh")) {
             throw new IllegalArgumentException("refresh token이 아닙니다.");
         }
 
@@ -80,14 +77,14 @@ public class AuthService {
 
         // redis의 refresh token과 요청 받은 refresh token이 같은 토큰인지 확인
         if (storedRefreshToken == null || !storedRefreshToken.equals(refreshToken)) {
-            // 토큰 탈취 가능성 고려, 토큰 삭제            
+            // 토큰 탈취 가능성 고려, 토큰 삭제
             refreshTokenService.deleteToken(userId);
 
             throw new IllegalArgumentException("저장된 토큰과 일치하지 않습니다. 재로그인이 필요합니다.");
         }
 
         User user = userRepository.findById(Long.parseLong(userId))
-            .orElseThrow(() -> new UsernameNotFoundException("해당하는 사용자를 찾을 수 없습니다."));
+                .orElseThrow(() -> new UsernameNotFoundException("해당하는 사용자를 찾을 수 없습니다."));
 
         // 토큰 다시 만들기
         String reAccessToken = jwtUtil.generateAccessToken(user.getId().toString(), user.getRoles());
@@ -95,40 +92,47 @@ public class AuthService {
         refreshTokenService.saveToken(user.getId().toString(), reRefreshToken);
 
         return LoginResponse.builder()
-            .accessToken(reAccessToken)
-            .refreshToken(reRefreshToken)
-            .userId(user.getId().toString())
-            .username(user.getUsername())
-            .roles(user.getRoles())
-            .build();
+                .accessToken(reAccessToken)
+                .refreshToken(reRefreshToken)
+                .userId(user.getId().toString())
+                .username(user.getUsername())
+                .roles(user.getRoles())
+                .build();
     }
 
+    @Transactional
     public LoginResponse signUpAndLogin(SignUpRequest request) {
         // 아이디 중복 확인
-        if(userRepository.existsByUsername(request.getUsername())) {
+        if (userRepository.existsByUsername(request.getUsername())) {
             throw new IllegalArgumentException("이미 사용중인 아이디 입니다.");
         }
 
         // 이메일 중복 확인
-        if(userRepository.existsByEmail(request.getEmail())) {
+        if (userRepository.existsByEmail(request.getEmail())) {
             throw new IllegalArgumentException("이미 사용중인 이메일 입니다.");
         }
 
         // 비밀번호 일치 확인
-        if(!request.getPassword().equals(request.getConfirmPassword())) {
+        if (!request.getPassword().equals(request.getConfirmPassword())) {
             throw new IllegalArgumentException("비밀번호가 서로 일치하지 않습니다.");
         }
 
         String encodedPassword = passwordEncoder.encode(request.getPassword());
 
         User newUser = User.builder()
-            .username(request.getUsername())
-            .password(encodedPassword)
-            .email(request.getEmail())
-            .roles(List.of("ROLE_USER"))
-            .build();
-        
+                .username(request.getUsername())
+                .password(encodedPassword)
+                .email(request.getEmail())
+                .roles(List.of("ROLE_USER"))
+                .build();
+
         User savedUser = userRepository.save(newUser);
+
+        eventPublisher.publishUserCreated(
+                savedUser.getId(),
+                savedUser.getUsername(),
+                savedUser.getEmail(),
+                savedUser.getRoles());
 
         String accessToken = jwtUtil.generateAccessToken(savedUser.getId().toString(), savedUser.getRoles());
         String refreshToken = jwtUtil.generateRefreshToken(savedUser.getId().toString());
@@ -140,11 +144,39 @@ public class AuthService {
                 .username(savedUser.getUsername())
                 .roles(savedUser.getRoles())
                 .build();
-
-
     }
 
+    @Transactional
+    public void deleteUser(Long userId) {
+        log.info("회원 탈퇴 요청 - userId: {}", userId);
+
+        User user = userRepository.findById(userId)
+                .orElseThrow(() -> new RuntimeException("사용자를 찾을 수 없습니다"));
+
+        String username = user.getUsername();
+
+        userRepository.delete(user);
+
+        refreshTokenService.deleteToken(String.valueOf(userId));
+
+        eventPublisher.publishUserDeleted(userId, username);
+
+        log.info("회원 탈퇴 완료 - userId: {}", userId);
+    }
+
+    @Transactional
     public void logout(String userId) {
         refreshTokenService.deleteToken(userId);
+    }
+
+    @Transactional
+    public java.util.Map<Long, String> getUsersNames(java.util.Set<Long> userIds) {
+        if (userIds == null || userIds.isEmpty()) {
+            return java.util.Collections.emptyMap();
+        }
+
+        java.util.List<User> users = userRepository.findByIdIn(userIds);
+        return users.stream()
+                .collect(java.util.stream.Collectors.toMap(User::getId, User::getUsername));
     }
 }

@@ -3,9 +3,11 @@ package com.everypoll.authService;
 import org.springframework.boot.SpringApplication;
 import org.springframework.boot.autoconfigure.SpringBootApplication;
 import org.springframework.data.jpa.repository.config.EnableJpaAuditing;
+import org.springframework.kafka.annotation.EnableKafka;
 
-@SpringBootApplication(scanBasePackages = {"com.everypoll.authService", "com.everypoll.common"})
+@EnableKafka
 @EnableJpaAuditing
+@SpringBootApplication(scanBasePackages = {"com.everypoll.authService", "com.everypoll.common"})
 public class AuthServiceApplication {
 
 	public static void main(String[] args) {
