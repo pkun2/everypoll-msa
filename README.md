@@ -110,9 +110,7 @@ sequenceDiagram
     end
 
     U->>Vote: 투표 참여
-    Vote->>Kafka: VOTE_INCREASED
-    Vote->>Kafka: VOTE_DECREASED
-    Vote->>Kafka: VOTE_COMPLETED
+    Vote->>Kafka: VOTE_CREATED
     Vote->>Kafka: VOTE_CANCELLED
 
     U->>Auth: 회원 탈퇴
