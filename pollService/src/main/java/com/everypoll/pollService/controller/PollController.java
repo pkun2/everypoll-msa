@@ -29,14 +29,14 @@ public class PollController {
     private static final Logger logger = LoggerFactory.getLogger(PollController.class);
 
     @GetMapping
-    public ResponseEntity<List<PollResponse>> getAllPolls() {
+    public ResponseEntity<List<PollResponse>> getAllPolls() { // 모든 투표 게시글 가져오기
         logger.info("모든 투표 게시글을 가져옵니다.");
         List<PollResponse> polls = pollService.getAllPolls();
         return ResponseEntity.ok(polls); // 200 ok
     }
 
     @PostMapping
-    public ResponseEntity<PollResponse> createPoll(@Valid @RequestBody PollCreateRequest request, @AuthenticationPrincipal UserDetails userDetails) {
+    public ResponseEntity<PollResponse> createPoll(@Valid @RequestBody PollCreateRequest request, @AuthenticationPrincipal UserDetails userDetails) { // 게시글 생성
         String currentUsername = userDetails.getUsername();
         logger.info("새로운 투표 게시글을 생성합니다.");
 
@@ -48,7 +48,7 @@ public class PollController {
     }
 
     @PutMapping("/{pollId}")
-    public ResponseEntity<PollResponse> updatePoll(@PathVariable Long pollId, @Valid @RequestBody PollUpdateRequest request, @AuthenticationPrincipal UserDetails userDetails) {
+    public ResponseEntity<PollResponse> updatePoll(@PathVariable Long pollId, @Valid @RequestBody PollUpdateRequest request, @AuthenticationPrincipal UserDetails userDetails) { // 게시글 수정
         String currentUsername = userDetails.getUsername();
         
         logger.info("투표 게시글 업데이트 id: {} by user: {}", pollId, currentUsername);
@@ -58,14 +58,14 @@ public class PollController {
     }
 
     @GetMapping("/{pollId}")
-    public ResponseEntity<PollResponse> getPollById(@PathVariable Long pollId) {
+    public ResponseEntity<PollResponse> getPollById(@PathVariable Long pollId) { // 게시글 id 기반 게시글 조회
         logger.info("투표 게시글 조회 id: {}", pollId);
         PollResponse pollResponse = pollService.getPollById(pollId);
         return ResponseEntity.ok(pollResponse); // PollResponse 반환
     }
 
     @DeleteMapping("/{pollId}")
-    public ResponseEntity<Void> deletePoll(@PathVariable Long pollId, @AuthenticationPrincipal UserDetails userDetails) {
+    public ResponseEntity<Void> deletePoll(@PathVariable Long pollId, @AuthenticationPrincipal UserDetails userDetails) { // 게시글 삭제
         String currentUsername = userDetails.getUsername();
         
         logger.info("투표 게시글 삭제 id: {} user: {}", pollId, currentUsername);
@@ -75,7 +75,7 @@ public class PollController {
     }
 
     @PatchMapping("/{pollId}/blind")
-    public ResponseEntity<Void> blindPoll(@PathVariable Long pollId) {
+    public ResponseEntity<Void> blindPoll(@PathVariable Long pollId) { // 게시글 블라인드
         logger.info("투표 서버-내부 블라인드 처리 요청 id: {}", pollId);
         pollService.blindPoll(pollId);
         return ResponseEntity.noContent().build();

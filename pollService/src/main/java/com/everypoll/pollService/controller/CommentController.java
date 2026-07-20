@@ -10,6 +10,8 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.data.domain.Pageable;
+import org.springframework.data.domain.Slice;
 
 @RestController
 @RequestMapping("/api/polls/{pollId}/comments")
@@ -19,7 +21,7 @@ public class CommentController {
     private final CommentService commentService;
 
     @PostMapping
-    public ResponseEntity<CommentResponse> createComment(
+    public ResponseEntity<CommentResponse> createComment( // 댓글 생성
             @PathVariable Long pollId,
             @Valid @RequestBody CommentCreateRequest request,
             @AuthenticationPrincipal UserDetails userDetails) {
@@ -31,21 +33,21 @@ public class CommentController {
     }
 
     @GetMapping
-    public ResponseEntity<org.springframework.data.domain.Slice<CommentResponse>> getComments(
+    public ResponseEntity<Slice<CommentResponse>> getComments( // 댓글 불러오기
             @PathVariable Long pollId,
             @AuthenticationPrincipal UserDetails userDetails,
-            org.springframework.data.domain.Pageable pageable) {
+            Pageable pageable) {
         Long currentUserId = (userDetails != null && userDetails.getUsername() != null
                 && !userDetails.getUsername().equals("anonymousUser"))
                         ? Long.valueOf(userDetails.getUsername())
                         : null;
-        org.springframework.data.domain.Slice<CommentResponse> responses = commentService.getCommentsByPollId(pollId,
+        Slice<CommentResponse> responses = commentService.getCommentsByPollId(pollId,
                 currentUserId, pageable);
         return ResponseEntity.ok(responses);
     }
 
     @DeleteMapping("/{commentId}")
-    public ResponseEntity<Void> deleteComment(
+    public ResponseEntity<Void> deleteComment( // 댓글 삭제
             @PathVariable Long pollId,
             @PathVariable Long commentId,
             @AuthenticationPrincipal UserDetails userDetails) {

@@ -42,7 +42,7 @@ public class CommentService {
 
         pollEventPublisher.publishCommentCreated(savedComment);
 
-        return CommentResponse.of(savedComment, "User" + userId, userId);
+        return CommentResponse.from(savedComment, "User" + userId, userId);
     }
 
     @Transactional(readOnly = true)
@@ -71,7 +71,7 @@ public class CommentService {
         final java.util.Map<Long, String> finalUsernameMap = usernameMap;
 
         // 3. Slice.map()을 통해 응답 객체로 변환합니다.
-        return comments.map(comment -> CommentResponse.of(
+        return comments.map(comment -> CommentResponse.from(
                 comment,
                 finalUsernameMap.getOrDefault(comment.getUserId(), "알 수 없는 사용자"),
                 currentUserId != null ? currentUserId : -1L));

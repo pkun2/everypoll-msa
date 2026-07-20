@@ -4,13 +4,14 @@ import java.time.LocalDateTime;
 
 import com.everypoll.pollService.model.Comment;
 
+import lombok.AccessLevel;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
 
 @Getter
 @Builder
-@AllArgsConstructor
+@AllArgsConstructor(access = AccessLevel.PRIVATE) // 빌더를 통해서만 생성하도록 강제
 public class CommentResponse {
     private Long id;
     private String content;
@@ -19,7 +20,7 @@ public class CommentResponse {
     private LocalDateTime createdAt;
     private boolean isOwner;
 
-    public static CommentResponse of(Comment comment, String username, Long currentUserId) {
+    public static CommentResponse from(Comment comment, String username, Long currentUserId) {
         return CommentResponse.builder()
                 .id(comment.getId())
                 .content(comment.getContent())
