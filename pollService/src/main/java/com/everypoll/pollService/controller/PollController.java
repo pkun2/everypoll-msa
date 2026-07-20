@@ -16,8 +16,6 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
-import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -36,8 +34,8 @@ public class PollController {
     }
 
     @PostMapping
-    public ResponseEntity<PollResponse> createPoll(@Valid @RequestBody PollCreateRequest request, @AuthenticationPrincipal UserDetails userDetails) { // 게시글 생성
-        String currentUsername = userDetails.getUsername();
+    public ResponseEntity<PollResponse> createPoll(@Valid @RequestBody PollCreateRequest request, @RequestHeader("X-User-Id") Long userId) { // 게시글 생성
+        String currentUsername = String.valueOf(userId);
         logger.info("새로운 투표 게시글을 생성합니다.");
 
         PollResponse pollResponse = pollService.createPoll(request, currentUsername);
@@ -48,9 +46,9 @@ public class PollController {
     }
 
     @PutMapping("/{pollId}")
-    public ResponseEntity<PollResponse> updatePoll(@PathVariable Long pollId, @Valid @RequestBody PollUpdateRequest request, @AuthenticationPrincipal UserDetails userDetails) { // 게시글 수정
-        String currentUsername = userDetails.getUsername();
-        
+    public ResponseEntity<PollResponse> updatePoll(@PathVariable Long pollId, @Valid @RequestBody PollUpdateRequest request, @RequestHeader("X-User-Id") Long userId) { // 게시글 수정
+        String currentUsername = String.valueOf(userId);
+
         logger.info("투표 게시글 업데이트 id: {} by user: {}", pollId, currentUsername);
         PollResponse updatedPoll = pollService.updatePoll(pollId, request, currentUsername);
 
@@ -65,9 +63,9 @@ public class PollController {
     }
 
     @DeleteMapping("/{pollId}")
-    public ResponseEntity<Void> deletePoll(@PathVariable Long pollId, @AuthenticationPrincipal UserDetails userDetails) { // 게시글 삭제
-        String currentUsername = userDetails.getUsername();
-        
+    public ResponseEntity<Void> deletePoll(@PathVariable Long pollId, @RequestHeader("X-User-Id") Long userId) { // 게시글 삭제
+        String currentUsername = String.valueOf(userId);
+
         logger.info("투표 게시글 삭제 id: {} user: {}", pollId, currentUsername);
         pollService.deletePoll(pollId, currentUsername);
 

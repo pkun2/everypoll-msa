@@ -5,7 +5,6 @@ import com.everypoll.authService.dto.LoginResponse;
 import com.everypoll.authService.dto.MessageResponse;
 import com.everypoll.authService.dto.SignUpRequest;
 import com.everypoll.authService.dto.RefreshTokenRequest;
-import com.everypoll.authService.security.UserDetailsImpl;
 import com.everypoll.authService.service.AuthService;
 
 import jakarta.validation.Valid;
@@ -17,7 +16,6 @@ import org.springframework.beans.factory.annotation.Value;
 import org.springframework.http.HttpHeaders;
 import org.springframework.http.ResponseCookie;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 @RestController
@@ -57,13 +55,8 @@ public class AuthController {
     }
 
     @PostMapping("/logout")
-    public ResponseEntity<?> logout(@AuthenticationPrincipal UserDetailsImpl userDetails) {
-        if (userDetails == null) {
-            return ResponseEntity.badRequest().body(new MessageResponse("사용자를 찾을 수 없습니다."));
-        }
-
-        String userId = userDetails.getId().toString();
-        authService.logout(userId);
+    public ResponseEntity<?> logout(@RequestHeader("X-User-Id") Long userId) {
+        authService.logout(userId.toString());
         logger.info("logout: ", userId);
 
         return ResponseEntity.ok(new MessageResponse("성공적으로 로그아웃 되었습니다."));
