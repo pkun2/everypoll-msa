@@ -80,12 +80,18 @@ class PolicyCheckState(TypedDict):
     is_violation: bool
     reason: str
 
+DEFAULT_GUIDELINE_TEXT = "기본 정책: 혐오 표현, 정치적 편향성, 분란 조장, 욕설이 포함된 투표는 금지됩니다."
+
 async def retrieve_guidelines(state: PolicyCheckState):
-    """가이드라인 문서 검색"""
+    """가이드라인 문서 검색 (type=guideline 메타데이터로 한정, 댓글 요약과 분리)"""
     node_start = time.perf_counter()
     try:
         vdb_start = time.perf_counter()
-        docs = await vectorstore.asimilarity_search("policy guideline", k=1)
+        docs = await vectorstore.asimilarity_search(
+            "policy guideline",
+            k=1,
+            filter={"type": {"$eq": "guideline"}}
+        )
         VECTORDB_QUERY_DURATION.labels(operation="similarity_search").observe(
             time.perf_counter() - vdb_start
         )
@@ -96,8 +102,25 @@ async def retrieve_guidelines(state: PolicyCheckState):
     if docs:
         context = docs[0].page_content
     else:
-        context = "기본 정책: 혐오 표현, 정치적 편향성, 분란 조장, 욕설이 포함된 투표는 금지됩니다."
+        context = DEFAULT_GUIDELINE_TEXT
     return {"guidelines": context}
+
+async def seed_guidelines() -> None:
+    """type=guideline 문서가 없으면 기본 정책 문서를 한 번 색인"""
+    existing = await vectorstore.asimilarity_search(
+        "policy guideline",
+        k=1,
+        filter={"type": {"$eq": "guideline"}}
+    )
+    if existing:
+        return
+    await vectorstore.aadd_documents([
+        Document(
+            page_content=DEFAULT_GUIDELINE_TEXT,
+            metadata={"type": "guideline"}
+        )
+    ])
+    logger.info("guideline 기본 가이드라인 정책 색인")
 
 class PolicyResult(BaseModel):
     is_violation: bool = Field(description="정책 위반 여부 (True/False)")
@@ -249,6 +272,9 @@ async def summarize_and_index_comments(poll_id: str, comments: List[str]) -> Non
             }
         )
         vdb_start = time.perf_counter()
+        await vectorstore.adelete(
+            where={"$and": [{"poll_id": {"$eq": poll_id}}, {"type": {"$eq": "comment_summary"}}]}
+        )
         await vectorstore.aadd_documents([doc])
         VECTORDB_QUERY_DURATION.labels(operation="add_documents").observe(
             time.perf_counter() - vdb_start
@@ -269,13 +295,15 @@ async def handle_poll_event_router(data: dict):
     event_type = data.get("event") or data.get("eventType") or data.get("type")
     logger.info(f"받은 이벤트: {event_type}")
     KAFKA_EVENTS_TOTAL.labels(
-        event_type=event_type if event_type in ("POLL_CREATED", "COMMENT_CREATED") else "unknown"
+        event_type=event_type if event_type in ("POLL_CREATED", "COMMENT_CREATED", "POLL_DELETED") else "unknown"
     ).inc()
 
     if event_type == "POLL_CREATED":
         await handle_poll_created(data)
     elif event_type == "COMMENT_CREATED":
         await handle_comment_created(data)
+    elif event_type == "POLL_DELETED":
+        await handle_poll_deleted(data)
     else:
         logger.warning(f"알 수 없는 이벤트: {event_type}")
 
@@ -289,6 +317,18 @@ async def handle_comment_created(data: dict):
     if cleaner.is_meaningless(content): return
     cleaned_content = cleaner.clean(content)
     await batcher.add_comment(poll_id_str, cleaned_content)
+
+
+async def handle_poll_deleted(data: dict):
+    """투표 삭제 이벤트 -> 해당 poll_id의 댓글 요약을 벡터 DB에서 제거"""
+    poll_id = data.get("pollId") or data.get("id")
+    if not poll_id: return
+
+    poll_id_str = str(poll_id)
+    await vectorstore.adelete(
+        where={"$and": [{"poll_id": {"$eq": poll_id_str}}, {"type": {"$eq": "comment_summary"}}]}
+    )
+    logger.info(f"🗑️ Deleted comment summary for deleted poll {poll_id_str}")
 
 async def handle_poll_created(data: dict) -> None:
     """투표 생성 이벤트 -> LangGraph 심층 검증 실행"""
@@ -381,6 +421,8 @@ async def lifespan(app: FastAPI):
     app.state.kafka_service = kafka_service
     app.state.kafka_task = kafka_task
     batcher.start()
+
+    await seed_guidelines()
 
     logger.info("[Startup] 모든 시스템 정상 가동 완료!")
 
