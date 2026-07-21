@@ -74,7 +74,8 @@ public class KafkaConfig {
                 "userDeleted:com.everypoll.common.event.auth.UserDeletedEvent," +
                 "pollCreated:com.everypoll.common.event.poll.PollCreatedEvent," +
                 "pollDeleted:com.everypoll.common.event.poll.PollDeletedEvent," +
-                "pollBlinded:com.everypoll.common.event.poll.PollBlindedEvent");
+                "pollBlinded:com.everypoll.common.event.poll.PollBlindedEvent," +
+                "commentCreated:com.everypoll.common.event.poll.CommentCreatedEvent");
         
         return new DefaultKafkaConsumerFactory<>(config);
     }
