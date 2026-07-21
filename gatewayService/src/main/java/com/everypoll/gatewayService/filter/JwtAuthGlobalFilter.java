@@ -71,7 +71,6 @@ public class JwtAuthGlobalFilter implements GlobalFilter, Ordered {
     private boolean isPublicRoute(String method, String path) {
         if ("POST".equals(method) && PUBLIC_POST_PATHS.contains(path)) return true;
         if ("GET".equals(method) && path.startsWith("/api/polls")) return true;
-        // 집계성 조회(결과/통계)만 public. /me, /check는 X-User-Id가 필요해 인증을 타야 함.
         if ("GET".equals(method) && path.matches("/api/votes/polls/\\d+/(results|stats)")) return true;
         if ("PATCH".equals(method) && path.matches("/api/polls/\\d+/blind")) return true;
         return false;
