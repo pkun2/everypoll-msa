@@ -37,6 +37,7 @@ Desktop.ini
 
 # dependencies
 frontend/node_modules
+frontend/dist
 /.pnp
 .pnp.js
 

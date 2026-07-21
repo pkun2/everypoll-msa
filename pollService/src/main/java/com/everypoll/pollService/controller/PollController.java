@@ -13,6 +13,7 @@ import lombok.RequiredArgsConstructor;
 import java.net.URI;
 
 import java.util.List;
+import java.util.Map;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.http.ResponseEntity;
@@ -70,6 +71,12 @@ public class PollController {
         pollService.deletePoll(pollId, currentUsername);
 
         return ResponseEntity.noContent().build(); // 204 No Content
+    }
+
+    @GetMapping("/{pollId}/summary")
+    public ResponseEntity<Map<String, String>> getPollSummary(@PathVariable Long pollId) { // AI 댓글 요약 (비동기 별도 조회)
+        String summary = pollService.getCommentSummary(pollId);
+        return ResponseEntity.ok(Map.of("summary", summary != null ? summary : ""));
     }
 
     @PatchMapping("/{pollId}/blind")

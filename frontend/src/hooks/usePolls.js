@@ -38,6 +38,7 @@ export function usePoll(pollId) {
   const [myVote, setMyVote] = useState(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const [summaryLoading, setSummaryLoading] = useState(false)
 
   useEffect(() => {
     if (pollId) {
@@ -59,10 +60,24 @@ export function usePoll(pollId) {
 
       setPoll(pollData)
       setMyVote(voteRes?.data || null)
+      if (!silent) fetchSummary()
     } catch (err) {
       setError(err.message)
     } finally {
       if (!silent) setLoading(false)
+    }
+  }
+
+  // AI 댓글 요약 응답까지 대기, 따라서 poll 로딩과 분리
+  const fetchSummary = async () => {
+    setSummaryLoading(true)
+    try {
+      const res = await pollAPI.getSummary(pollId)
+      setPoll((prev) => (prev ? { ...prev, commentSummary: res.data.summary } : prev))
+    } catch (err) {
+      
+    } finally {
+      setSummaryLoading(false)
     }
   }
 
@@ -84,5 +99,5 @@ export function usePoll(pollId) {
     await pollAPI.delete(pollId)
   }
 
-  return { poll, myVote, loading, error, vote, cancelVote, deletePoll, refetch: fetchPoll }
+  return { poll, myVote, loading, error, summaryLoading, vote, cancelVote, deletePoll, refetch: fetchPoll }
 }

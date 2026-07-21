@@ -8,7 +8,7 @@ function PollDetail() {
   const { pollId } = useParams()
   const navigate = useNavigate()
   const { user } = useAuth()
-  const { poll, myVote, loading, error, vote, cancelVote, deletePoll } = usePoll(pollId)
+  const { poll, myVote, loading, error, summaryLoading, vote, cancelVote, deletePoll } = usePoll(pollId)
   if (loading) {
     return (
       <div className="flex justify-center items-center h-64">
@@ -94,16 +94,20 @@ function PollDetail() {
             <p className="text-gray-600 mt-2">{poll.description}</p>
           )}
 
-          {/* AI 댓글 요약 렌더링 영역 */}
-          {poll.commentSummary && (
+          {/* AI 댓글 요약 렌더링 영역 (poll 로딩과 분리되어 완료되는 대로 채워짐) */}
+          {(summaryLoading || poll.commentSummary) && (
             <div className="mt-6 p-5 bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 rounded-xl shadow-sm">
               <div className="flex items-center gap-2 mb-3 text-indigo-700 font-bold">
                 <span className="text-lg">✨</span>
                 <span>AI 댓글 요약</span>
               </div>
-              <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
-                {poll.commentSummary}
-              </p>
+              {summaryLoading ? (
+                <p className="text-sm text-gray-500">요약을 불러오는 중...</p>
+              ) : (
+                <p className="text-sm text-gray-800 leading-relaxed whitespace-pre-wrap">
+                  {poll.commentSummary}
+                </p>
+              )}
             </div>
           )}
         </div>

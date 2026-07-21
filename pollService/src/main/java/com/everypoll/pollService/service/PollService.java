@@ -10,6 +10,7 @@ public interface PollService {
     PollResponse createPoll(PollCreateRequest request, String username);
     List<PollResponse> getAllPolls();
     PollResponse getPollById(Long pollId);
+    String getCommentSummary(Long pollId);
     PollResponse updatePoll(Long pollId, PollUpdateRequest request, String username);
     void deletePoll(Long pollId, String username);
     void handleUserDeleted(Long userId);

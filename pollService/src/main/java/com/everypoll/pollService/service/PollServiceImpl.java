@@ -75,18 +75,22 @@ public class PollServiceImpl implements PollService {
         Poll poll = pollRepository.findById(pollId)
                 .orElseThrow(() -> new ResourceNotFoundException("Poll", "id", pollId));
 
-        PollResponse response = PollResponse.from(poll);
+        return PollResponse.from(poll);
+    }
+
+    // READ (AI 댓글 요약, 별도 호출) — poll 상세 조회가 느린 rag-agent 응답을 기다리지 않도록 분리
+    @Transactional(readOnly = true)
+    public String getCommentSummary(Long pollId) {
         try {
             Map<String, Object> summaryData = ragAgentClient.getPollSummary(pollId);
             if (summaryData != null && summaryData.get("summary") != null) {
-                response.setCommentSummary((String) summaryData.get("summary"));
+                return (String) summaryData.get("summary");
             }
+            return null;
         } catch (Exception e) {
             log.warn("댓글 요약 가져오기 실패 poll {}: {}", pollId, e.getMessage());
-            response.setCommentSummary("현재 AI 요약을 불러올 수 없습니다.");
+            return "현재 AI 요약을 불러올 수 없습니다.";
         }
-
-        return response;
     }
 
     // UPDATE

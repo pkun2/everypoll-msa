@@ -114,6 +114,7 @@ export const pollAPI = {
   getAll: (page = 0, size = 10) =>
     client.get(`/api/polls?page=${page}&size=${size}`),
   getById: (id) => client.get(`/api/polls/${id}`),
+  getSummary: (id) => client.get(`/api/polls/${id}/summary`),
   create: (data) => client.post('/api/polls', data),
   update: (id, data) => client.put(`/api/polls/${id}`, data),
   delete: (id) => client.delete(`/api/polls/${id}`)
