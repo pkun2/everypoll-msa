@@ -30,9 +30,9 @@ services:
               capabilities: [ gpu ]
     networks:
       - ai-net
-  qwen3-9b-4bit:
+  qwen3-4b-16bit:
     image: vllm/vllm-openai:cu130-nightly
-    container_name: qwen3-9b-4bit
+    container_name: qwen3-4b-16bit
     depends_on:
       bge-m3:
         condition: service_healthy
@@ -54,7 +54,7 @@ services:
       - NVIDIA_VISIBLE_DEVICES=all
       - HF_HUB_ENABLE_HF_TRANSFER=1
     command: >
-      --model pkun2/qwen3_4bit_mixed_kr_2_gptq
+      --model pkun2/qwen3_4b_16bit_meme_3_kr
       --gpu-memory-utilization 0.7
       --max-model-len 8192
     healthcheck:
@@ -76,15 +76,15 @@ services:
     environment:
       - PERSIST_DIRECTORY=/app/chroma_db
       - EMBEDDING_API_URL=http://bge-m3:8000/v1
-      - LLM_API_URL=http://qwen3-9b-4bit:8000/v1
+      - LLM_API_URL=http://qwen3-4b-16bit:8000/v1
       - KAFKA_BOOTSTRAP_SERVERS=kafka-kraft:9092
       - POLL_SERVICE_URL=poll-service:8082
     extra_hosts:
       - "host.docker.internal:${MAIN_PC_IP}"
     depends_on:
-      bge-m3:
+      qwen3-4b-16bit:
         condition: service_healthy
-      qwen3-9b-4bit:
+      bge-m3:
         condition: service_healthy
     networks:
       - ai-net

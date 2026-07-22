@@ -53,7 +53,7 @@ embedding_model = OpenAIEmbeddings(
 )
 
 llm = ChatOpenAI(
-    model="pkun2/qwen3_4bit_mixed_kr_2_gptq",
+    model="pkun2/qwen3_4b_16bit_meme_3_kr",
     openai_api_base=LLM_API_URL,
     openai_api_key="dummy",
     temperature=0.1
