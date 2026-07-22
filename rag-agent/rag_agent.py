@@ -323,13 +323,17 @@ async def handle_poll_deleted(data: dict):
     """투표 삭제 이벤트 -> 해당 poll_id의 댓글 요약을 벡터 DB에서 제거"""
     poll_id = data.get("pollId") or data.get("id")
     if not poll_id: return
-
-    poll_id_str = str(poll_id)
-    await vectorstore.adelete(
-        where={"$and": [{"poll_id": {"$eq": poll_id_str}}, {"type": {"$eq": "comment_summary"}}]}
-    )
-    logger.info(f"🗑️ Deleted comment summary for deleted poll {poll_id_str}")
-
+    try:
+        poll_id_str = str(poll_id)
+        await vectorstore.adelete(
+            where={"$and": [{"poll_id": {"$eq": poll_id_str}}, {"type": {"$eq": "comment_summary"}}]}
+        )
+        logger.info(f"🗑️ Deleted comment summary for deleted poll {poll_id_str}")
+    except Exception as e:
+        logger.error(
+                f"❌ Error Deleted comment summary for deleted poll {poll_id}: {e}",
+                exc_info=True
+            )
 async def handle_poll_created(data: dict) -> None:
     """투표 생성 이벤트 -> LangGraph 심층 검증 실행"""
     poll_id = data.get("pollId") or data.get("id") # pollId 우선 사용, 없으면 id (호환성)
@@ -349,7 +353,15 @@ async def handle_poll_created(data: dict) -> None:
         "reason": ""
     }
 
-    result = await policy_checker_app.ainvoke(initial_state)
+    try:
+        result = await policy_checker_app.ainvoke(initial_state)
+    except Exception as e:
+        POLICY_CHECK_TOTAL.labels(result="error").inc()
+        logger.error(
+            f"❌ Error running policy check for poll {poll_id}: {e}",
+            exc_info=True
+        )
+        return
 
     if result["is_violation"]:
         logger.warning(
