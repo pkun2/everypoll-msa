@@ -9,8 +9,8 @@ class CommentBatcher:
         self,
         callback: Callable[[str, List[str]],
         Coroutine[Any, Any, None]],
-        max_size: int = 5,
-        interval_minutes: int = 10
+        max_size: int = 5, # 최소 댓글 요약 기준
+        interval_minutes: int = 10 # 배치되는 최소 시간(분)
     ) -> None:
         self.buffer: Dict[str, List[str]] = {}
         self.last_flush: Dict[str, datetime] = {}
